@@ -4,9 +4,11 @@
 
 **Goal:** Получить рабочий каркас C++/Qt-проекта CoupeCAD, который собирается и проходит тесты на Windows, macOS и Linux через GitHub Actions, и запускает пустое QML-окно. Это фундамент для всех последующих стейджей.
 
-**Architecture:** Один CMake-проект с CMakePresets и Conan 2 для зависимостей кроме Qt; Qt подтягивается извне (системно или через aqtinstall). Один исполняемый таргет `coupecad` (apps/coupecad/) и каталог тестов `tests/` на GoogleTest. Структура `src/coupecad/<module>` подготовлена под будущие модули (Core, Geometry и т.д.), но пустая в Stage 0.
+**Architecture:** Один CMake-проект с CMakePresets и Conan 2 для зависимостей. Qt нужно поискать в conan (например, conan search qt), либо подтягивается извне (системно или через aqtinstall). Один исполняемый таргет `coupecad` (apps/coupecad/) и каталог тестов `tests/` на GoogleTest. Структура `src/coupecad/<module>` подготовлена под будущие модули (Core, Geometry и т.д.), но пустая в Stage 0.
 
-**Tech Stack:** C++20, CMake **3.25+** (требуется для CMakePresets v6), Conan 2, GoogleTest, Qt 6.5+ (Quick + Gui). Ninja генератор. GitHub Actions с runner-ами ubuntu-22.04, macos-13, windows-2022. Qt в CI ставится через `jurplel/install-qt-action@v4`.
+**Tech Stack:** C++20, CMake **3.25+** (требуется для CMakePresets v6), Conan 2, GoogleTest, Qt 6 (Quick + Gui) — **через Conan Center**, последняя стабильная версия рецепта на момент реализации (на момент написания плана: `qt/6.10.1`; проверить через `conan search "qt/*" -r=conancenter`). Ninja генератор. GitHub Actions с runner-ами ubuntu-22.04, macos-13, windows-2022.
+
+> **Важно:** сборка Qt из исходников через Conan на пустом кеше занимает часы (порядок: 2–4 ч на CI-раннере). Рассчитываем на: (1) бинарные артефакты ConanCenter для популярных профилей (MSVC 2022, GCC 11 на glibc, AppleClang на x86_64/arm64) — тогда установка это секунды; (2) кеширование `~/.conan2` в CI через `actions/cache`. Если на конкретном CI-профиле бинарей в ConanCenter нет — первая успешная сборка уходит в кеш, последующие быстрые. Если при первом запуске CI одна из job падает по таймауту (6 ч на GitHub-hosted runner) — см. Troubleshooting в Task 8.
 
 **Definition of Done:**
 - На свежей машине: `conan install . --build=missing && cmake --preset default && cmake --build --preset default && ctest --preset default` отрабатывает зелёным на трёх ОС.
@@ -58,7 +60,7 @@ CoupeCAD/
 
 - `CMakeLists.txt` — корневой проект, опции, поиск Qt, подключение поддиректорий.
 - `CMakePresets.json` — пресеты конфигурации/сборки/тестирования; единая команда для всех ОС.
-- `conanfile.py` — зависимости через Conan (только GoogleTest на Stage 0; Qt — снаружи).
+- `conanfile.py` — зависимости через Conan (только GoogleTest на Stage 0).
 - `apps/coupecad/main.cpp` — точка входа: парсит `--version`, иначе запускает `QQmlApplicationEngine` с `Main.qml`.
 - `apps/coupecad/qml/Main.qml` — пустое окно с заголовком и фиксированным размером.
 - `tests/smoke/smoke_test.cpp` — тривиальный тест (`EXPECT_EQ(2 + 2, 4)`), доказывающий, что цепочка test-discovery работает.
@@ -176,21 +178,12 @@ Stage 0 (Bootstrap). Проект только начат. Работающег�
 - C++20 компилятор: MSVC 2022, Clang 14+, GCC 11+
 - Ninja
 - Conan **2.x**
-- Qt **6.5 LTS или новее**, компоненты Core, Gui, Quick
 
-## Установка Qt
+Qt 6 и все остальные C++-зависимости подтягиваются через Conan (см. `conanfile.py`), отдельно устанавливать Qt не требуется.
 
-Самый простой способ для разработки — `aqtinstall`:
+## Первая сборка (важно)
 
-```sh
-pipx install aqtinstall
-aqt install-qt linux desktop 6.7.3 gcc_64 -m qtshadertools
-export Qt6_DIR=$PWD/6.7.3/gcc_64/lib/cmake/Qt6
-```
-
-(Аналоги для macOS: `mac desktop 6.7.3 clang_64`; для Windows: `windows desktop 6.7.3 win64_msvc2022_64`.)
-
-В CI Qt ставится через `jurplel/install-qt-action`.
+Qt в Conan Center скомпилирован только для части профилей. Если ваш профиль совпадает с предсобранным — `conan install` завершится за секунды. Если нет — Conan соберёт Qt из исходников (2–4 часа, потребуется ~30 ГБ свободного места на диске). Результат ляжет в `~/.conan2` и переиспользуется для всех последующих сборок.
 
 ## Сборка и запуск
 
@@ -330,12 +323,23 @@ git commit -m "build: add top-level CMakeLists and CMakePresets"
 
 ---
 
-## Task 3: Conanfile + GoogleTest dependency
+## Task 3: Conanfile с Qt и GoogleTest
 
 **Files:**
 - Create: `conanfile.py`
 
-- [ ] **Step 1: Создать `conanfile.py`**
+- [ ] **Step 1: Найти последнюю стабильную версию Qt в Conan Center**
+
+```sh
+conan remote list
+conan search "qt/*" -r=conancenter
+```
+
+Ожидается: список версий Qt. Нас интересует **последняя стабильная 6.x** без суффиксов (типа `-alpha`, `-rc`). На момент написания плана — это `qt/6.10.1`. Если в вашем `conan search` появилась более свежая стабильная версия (например, `qt/6.11.0`) — используйте её вместо `6.10.1` в следующем шаге.
+
+- [ ] **Step 2: Создать `conanfile.py`**
+
+Подставить в `self.requires("qt/...")` версию, выбранную в Step 1. В примере ниже — `qt/6.10.1`.
 
 ```python
 from conan import ConanFile
@@ -347,14 +351,26 @@ class CoupeCADConan(ConanFile):
     version = "0.1.0"
     settings = "os", "compiler", "build_type", "arch"
 
-    # Stage 0: только GoogleTest. Qt подключается извне (системно/aqtinstall).
-    # OpenCASCADE добавится в Stage 2 (Geometry layer).
+    # Stage 0: Qt и GoogleTest. OpenCASCADE добавится в Stage 2.
+    # Qt-версию подобрали через `conan search "qt/*" -r=conancenter`
+    # (см. Task 3 Step 1) — подставьте актуальную, если она свежее 6.10.1.
     def requirements(self):
+        self.requires("qt/6.10.1")
         self.test_requires("gtest/1.14.0")
+
+    # Qt-рецепт имеет десятки опций для включения/отключения модулей.
+    # В Stage 0 нам нужны только Quick/QML + Gui/Core. Остальные модули
+    # оставляем на значениях по умолчанию (большинство off), чтобы
+    # ускорить сборку и уменьшить размер.
+    default_options = {
+        "qt/*:shared": True,
+        "qt/*:qtdeclarative": True,
+        "qt/*:qtshadertools": True,
+    }
 
     def layout(self):
         cmake_layout(self)
-        # Принудительно используем build/<preset_name>/ как на Linux/macOS,
+        # Принудительно используем build/default/ как на Linux/macOS,
         # так и на Windows, чтобы CMakePresets.json совпадал с conan layout.
         self.folders.build = "build/default"
         self.folders.generators = "build/default"
@@ -366,7 +382,7 @@ class CoupeCADConan(ConanFile):
         tc.generate()
 ```
 
-- [ ] **Step 2: Проверить, что Conan устанавливает зависимости**
+- [ ] **Step 3: Проверить, что Conan устанавливает зависимости**
 
 Локально (требуется установленный Conan 2.x):
 
@@ -375,23 +391,25 @@ conan profile detect --force
 conan install . --build=missing -s build_type=Debug
 ```
 
-Ожидается: создаётся `build/default/conan_toolchain.cmake` и `build/default/CMakeDeps/*.cmake`. Команда заканчивается без ошибок.
+Ожидается: создаётся `build/default/conan_toolchain.cmake` и `build/default/Qt6Config.cmake` (плюс файлы для остальных Qt-модулей и для `gtest`). Команда заканчивается без ошибок.
 
-- [ ] **Step 3: Проверить, что CMake конфигурируется**
+> **Внимание:** если для вашего профиля в Conan Center нет предсобранного бинаря Qt — Conan начнёт компилировать Qt из исходников. Это займёт 2–4 часа и потребует ~30 ГБ свободного места на диске. Результат закешируется в `~/.conan2` и следующие сборки будут быстрыми.
+>
+> Убедитесь, что профиль совместим с бинарями ConanCenter (проверить можно через `conan list "qt/6.10.1:*" -r=conancenter` и сравнить свой профиль `conan profile show` с доступными). Обычно совместимы: GCC 11 + libstdc++11 на x86_64-linux; AppleClang на macOS (x86_64 и armv8); MSVC 2022 на Windows x86_64 — все в Release и Debug.
+
+- [ ] **Step 4: Проверить, что CMake конфигурируется**
 
 ```sh
 cmake --preset default
 ```
 
-Ожидается: ошибка про отсутствующий каталог `tests/` или таргет `coupecad`. Эту ошибку решат Task 4 и Task 5. На этом шаге достаточно подтверждения, что conan toolchain читается и Qt6 находится.
+Ожидается: CMake находит Qt6 через conan-generated `Qt6Config.cmake`, затем сообщает об ошибке про отсутствующий каталог `tests/` или таргет `coupecad` (это нормально — их добавят Task 4 и Task 5). Главное — **Qt6 найден** без внешних переменных окружения.
 
-> **Если Qt6 не находится:** установить Qt через aqtinstall и выставить переменную окружения `Qt6_DIR=<путь>/lib/cmake/Qt6` (см. README, раздел «Установка Qt»).
-
-- [ ] **Step 4: Закоммитить**
+- [ ] **Step 5: Закоммитить**
 
 ```sh
 git add conanfile.py
-git commit -m "build: add conanfile with GoogleTest dependency"
+git commit -m "build: add conanfile with Qt6 and GoogleTest from Conan Center"
 ```
 
 ---
@@ -821,10 +839,14 @@ on:
   pull_request:
     branches: [ main ]
 
+env:
+  CONAN_HOME: ${{ github.workspace }}/.conan2
+
 jobs:
   build-linux:
-    name: Linux (Ubuntu 22.04, GCC, Qt 6.7.3)
+    name: Linux (Ubuntu 22.04, GCC)
     runs-on: ubuntu-22.04
+    timeout-minutes: 360
 
     steps:
       - name: Checkout
@@ -834,7 +856,14 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y ninja-build libgl1-mesa-dev libxkbcommon-dev \
-              libxcb-cursor0 libdbus-1-3 xvfb
+              libxcb-cursor0 libdbus-1-3 xvfb \
+              libfontconfig1-dev libfreetype6-dev libx11-dev libx11-xcb-dev \
+              libxext-dev libxfixes-dev libxi-dev libxrender-dev \
+              libxcb1-dev libxcb-glx0-dev libxcb-keysyms1-dev libxcb-image0-dev \
+              libxcb-shm0-dev libxcb-icccm4-dev libxcb-sync-dev \
+              libxcb-xfixes0-dev libxcb-shape0-dev libxcb-randr0-dev \
+              libxcb-render-util0-dev libxcb-util-dev libxcb-xinerama0-dev \
+              libxcb-xkb-dev libxkbcommon-x11-dev
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -847,15 +876,13 @@ jobs:
           pip install "conan>=2.0,<3"
           conan profile detect --force
 
-      - name: Install Qt
-        uses: jurplel/install-qt-action@v4
+      - name: Cache Conan home
+        uses: actions/cache@v4
         with:
-          version: '6.7.3'
-          host: linux
-          target: desktop
-          arch: gcc_64
-          modules: 'qtshadertools'
-          cache: true
+          path: ${{ env.CONAN_HOME }}
+          key: conan-linux-${{ hashFiles('conanfile.py') }}
+          restore-keys: |
+            conan-linux-
 
       - name: Conan install
         run: conan install . --build=missing -s build_type=Debug
@@ -880,12 +907,13 @@ git commit -m "ci: add GitHub Actions workflow for Linux build and tests"
 git push -u origin main
 ```
 
-Ожидается: workflow «CI» запускается, job `build-linux` зелёный.
+Ожидается: workflow «CI» запускается, job `build-linux` зелёный. **Первый прогон может занять несколько часов, если Conan будет компилировать Qt из исходников** — это нормально. Последующие прогоны используют `actions/cache` и проходят за минуты.
 
-> Если job красный — починить **прежде**, чем добавлять macOS и Windows. Самые частые проблемы:
-> - Qt-action не нашёл версию → проверить, что `6.7.3` доступна для linux/gcc_64.
-> - `find_package(Qt6)` не отработал → проверить, что `install-qt-action` экспортирует `Qt6_DIR`.
-> - `gtest_discover_tests` не нашёл бинари → проверить, что `cmake --build` собрал и `coupecad`, и `coupecad_*_test`.
+> **Troubleshooting:**
+> - **Job упал по таймауту 6 ч на первой сборке** → Conan не нашёл бинарь Qt для профиля Linux-GCC-11 и собирает из исходников, не уложившись в 6 ч. Варианты: (а) запустить CI повторно — уже собранные артефакты попали в cache, продолжит с того же места; (б) временно снять с `qt/*` ряд опций (например, `qt/*:shared=True` → уменьшает поверхность, но не радикально); (в) как крайний случай — откатиться на `jurplel/install-qt-action` для Linux-job и оставить Conan для остальных зависимостей (компромисс со спекой, зафиксировать как открытый вопрос в `docs/superpowers/specs/`).
+> - **`find_package(Qt6)` не отработал** → проверить, что `conan_toolchain.cmake` действительно подхвачен (`cmake --preset default` печатает строку `Using Conan toolchain`), и что `Qt6Config.cmake` лежит в `build/default/`.
+> - **`gtest_discover_tests` не нашёл бинари** → проверить, что `cmake --build` собрал и `coupecad`, и `coupecad_*_test`.
+> - **Conan говорит "ERROR: Missing binary" для qt/xxx** → значит, бинарь для текущего профиля отсутствует. Убедиться, что шаг `conan install` запущен с `--build=missing`, тогда Conan соберёт из исходников (долго) и закеширует.
 
 ---
 
@@ -900,8 +928,9 @@ git push -u origin main
 
 ```yaml
   build-macos:
-    name: macOS (macos-13, Clang, Qt 6.7.3)
+    name: macOS (macos-13, AppleClang)
     runs-on: macos-13
+    timeout-minutes: 360
 
     steps:
       - name: Checkout
@@ -921,15 +950,13 @@ git push -u origin main
           pip install "conan>=2.0,<3"
           conan profile detect --force
 
-      - name: Install Qt
-        uses: jurplel/install-qt-action@v4
+      - name: Cache Conan home
+        uses: actions/cache@v4
         with:
-          version: '6.7.3'
-          host: mac
-          target: desktop
-          arch: clang_64
-          modules: 'qtshadertools'
-          cache: true
+          path: ${{ env.CONAN_HOME }}
+          key: conan-macos-${{ hashFiles('conanfile.py') }}
+          restore-keys: |
+            conan-macos-
 
       - name: Conan install
         run: conan install . --build=missing -s build_type=Debug
@@ -954,7 +981,7 @@ git commit -m "ci: add macOS job to CI workflow"
 git push
 ```
 
-Ожидается: оба job-а (`build-linux`, `build-macos`) зелёные.
+Ожидается: оба job-а (`build-linux`, `build-macos`) зелёные. Troubleshooting для macOS — такой же, как для Linux (см. Task 8).
 
 ---
 
@@ -969,8 +996,9 @@ git push
 
 ```yaml
   build-windows:
-    name: Windows (windows-2022, MSVC 2022, Qt 6.7.3)
+    name: Windows (windows-2022, MSVC 2022)
     runs-on: windows-2022
+    timeout-minutes: 360
 
     steps:
       - name: Checkout
@@ -988,20 +1016,18 @@ git push
           choco install ninja -y
           conan profile detect --force
 
-      - name: Install Qt
-        uses: jurplel/install-qt-action@v4
-        with:
-          version: '6.7.3'
-          host: windows
-          target: desktop
-          arch: win64_msvc2022_64
-          modules: 'qtshadertools'
-          cache: true
-
       - name: Configure MSVC environment
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
+
+      - name: Cache Conan home
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.CONAN_HOME }}
+          key: conan-windows-${{ hashFiles('conanfile.py') }}
+          restore-keys: |
+            conan-windows-
 
       - name: Conan install
         run: conan install . --build=missing -s build_type=Debug
@@ -1026,7 +1052,7 @@ git commit -m "ci: add Windows job to CI workflow"
 git push
 ```
 
-Ожидается: все три job-а (`build-linux`, `build-macos`, `build-windows`) зелёные. Это финальная контрольная точка Stage 0 — Definition of Done выполнен.
+Ожидается: все три job-а (`build-linux`, `build-macos`, `build-windows`) зелёные. Это финальная контрольная точка Stage 0 — Definition of Done выполнен. Troubleshooting для Windows — такой же, как для Linux (см. Task 8).
 
 ---
 
