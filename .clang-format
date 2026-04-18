@@ -1,0 +1,25 @@
+---
+BasedOnStyle: LLVM
+Language: Cpp
+Standard: c++20
+ColumnLimit: 100
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+AccessModifierOffset: -4
+NamespaceIndentation: None
+PointerAlignment: Left
+AlignAfterOpenBracket: Align
+AllowShortFunctionsOnASingleLine: Inline
+BreakBeforeBraces: Attach
+SortIncludes: CaseInsensitive
+IncludeBlocks: Regroup
+IncludeCategories:
+  - Regex: '^<Q.*>$'
+    Priority: 3
+  - Regex: '^<.*\.h>$'
+    Priority: 2
+  - Regex: '^<.*>$'
+    Priority: 1
+  - Regex: '.*'
+    Priority: 4
