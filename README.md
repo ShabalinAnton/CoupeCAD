@@ -12,12 +12,21 @@ Stage 0 (Bootstrap). Проект только начат. Работающег�
 - C++20 компилятор: MSVC 2022, Clang 14+, GCC 11+
 - Ninja
 - Conan **2.x**
+- Qt **6.5 LTS или новее**, компоненты Core, Gui, Quick
 
-Qt 6 и все остальные C++-зависимости подтягиваются через Conan (см. `conanfile.py`), отдельно устанавливать Qt не требуется.
+## Установка Qt
 
-## Первая сборка (важно)
+Qt ставится отдельно от Conan (причина — в плане Stage 0). Самый простой способ для разработки — `aqtinstall`:
 
-Qt в Conan Center скомпилирован только для части профилей. Если ваш профиль совпадает с предсобранным — `conan install` завершится за секунды. Если нет — Conan соберёт Qt из исходников (2–4 часа, потребуется ~30 ГБ свободного места на диске). Результат ляжет в `~/.conan2` и переиспользуется для всех последующих сборок.
+```sh
+pipx install aqtinstall
+aqt install-qt mac desktop 6.7.3 clang_64 -m qtshadertools           # macOS
+# aqt install-qt linux desktop 6.7.3 gcc_64 -m qtshadertools         # Linux
+# aqt install-qt windows desktop 6.7.3 win64_msvc2022_64 -m qtshadertools  # Windows
+export Qt6_DIR=$PWD/6.7.3/macos/lib/cmake/Qt6                        # путь зависит от ОС
+```
+
+В CI Qt ставится через `jurplel/install-qt-action`.
 
 ## Сборка и запуск
 
