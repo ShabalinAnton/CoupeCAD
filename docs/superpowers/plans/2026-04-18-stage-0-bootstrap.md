@@ -6,7 +6,7 @@
 
 **Architecture:** Один CMake-проект с CMakePresets и Conan 2 для зависимостей. Qt нужно поискать в conan (например, conan search qt), либо подтягивается извне (системно или через aqtinstall). Один исполняемый таргет `coupecad` (apps/coupecad/) и каталог тестов `tests/` на GoogleTest. Структура `src/coupecad/<module>` подготовлена под будущие модули (Core, Geometry и т.д.), но пустая в Stage 0.
 
-**Tech Stack:** C++20, CMake **3.25+** (требуется для CMakePresets v6), Conan 2, GoogleTest, Qt 6 (Quick + Gui) — **через Conan Center**, последняя стабильная версия рецепта на момент реализации (на момент написания плана: `qt/6.10.1`; проверить через `conan search "qt/*" -r=conancenter`). Ninja генератор. GitHub Actions с runner-ами ubuntu-22.04, macos-13, windows-2022.
+**Tech Stack:** C++20, CMake **3.25+** (требуется для CMakePresets v6), Conan 2, GoogleTest, Qt 6 (Quick + Gui) — **через Conan Center**. Берём `qt/6.6.3` как проверенную версию рецепта (в прошлых проектах владельца собиралась без проблем на macOS arm64; binary остаётся в локальном кеше `~/.conan2` и переиспользуется). Если когда-нибудь захочется обновиться — `conan search "qt/*" -r=conancenter` покажет актуальный список (на сегодня доступны 6.5.x, 6.6.3, 6.7.x, 6.8.3, 6.10.1; новее — рискованнее по recipe-стабильности). Ninja генератор. GitHub Actions с runner-ами ubuntu-22.04, macos-13, windows-2022.
 
 > **Важно (проверено 2026-04-19):** в Conan Center прямо сейчас **нет** прекомпилированных бинарей Qt с `qtdeclarative=True`/`qtshadertools=True` ни для одного профиля (проверял `qt/6.5.3`, `qt/6.6.3`, `qt/6.7.3`, `qt/6.8.3`, `qt/6.10.1`). Поэтому первый `conan install --build=missing` будет **компилировать Qt из исходников ~2–4 часа на каждой связке (OS, compiler)** и потребует ~30 ГБ свободного места. Это разовая боль: результат кешируется в `~/.conan2` локально и в `actions/cache` на CI; все последующие сборки на той же связке проходят за минуты. Подход известно-рабочий — то же делалось в предыдущих проектах владельца на macOS arm64 (`qt/6.6.3`). На GitHub-hosted runner-ах timeout на job — 6 часов; этого должно хватить для первой сборки Qt с заметным запасом, но Troubleshooting в Task 8 описывает что делать, если не уложимся.
 
@@ -328,18 +328,9 @@ git commit -m "build: add top-level CMakeLists and CMakePresets"
 **Files:**
 - Create: `conanfile.py`
 
-- [ ] **Step 1: Найти последнюю стабильную версию Qt в Conan Center**
+> **Версия Qt:** берём `qt/6.6.3` — проверена на macOS arm64 в предыдущих проектах владельца, рецепт стабильный, локально может быть уже в кеше. Если хотите обновить — посмотрите `conan search "qt/*" -r=conancenter` и подставьте актуальную (но учтите: каждое (OS, compiler, version) сочетание требует ~2-4 часа компиляции на пустом кеше).
 
-```sh
-conan remote list
-conan search "qt/*" -r=conancenter
-```
-
-Ожидается: список версий Qt. Нас интересует **последняя стабильная 6.x** без суффиксов (типа `-alpha`, `-rc`). На момент написания плана — это `qt/6.10.1`. Если в вашем `conan search` появилась более свежая стабильная версия (например, `qt/6.11.0`) — используйте её вместо `6.10.1` в следующем шаге.
-
-- [ ] **Step 2: Создать `conanfile.py`**
-
-Подставить в `self.requires("qt/...")` версию, выбранную в Step 1. В примере ниже — `qt/6.10.1`.
+- [ ] **Step 1: Создать `conanfile.py`**
 
 ```python
 from conan import ConanFile
@@ -352,16 +343,16 @@ class CoupeCADConan(ConanFile):
     settings = "os", "compiler", "build_type", "arch"
 
     # Stage 0: Qt и GoogleTest. OpenCASCADE добавится в Stage 2.
-    # Qt-версию подобрали через `conan search "qt/*" -r=conancenter`
-    # (см. Task 3 Step 1) — подставьте актуальную, если она свежее 6.10.1.
     def requirements(self):
-        self.requires("qt/6.10.1")
+        self.requires("qt/6.6.3")
         self.test_requires("gtest/1.14.0")
 
     # Qt-рецепт имеет десятки опций для включения/отключения модулей.
     # В Stage 0 нам нужны только Quick/QML + Gui/Core. Остальные модули
     # оставляем на значениях по умолчанию (большинство off), чтобы
     # ускорить сборку и уменьшить размер.
+    # Те же три опции, что использовались в прошлом проекте владельца —
+    # так локально получаем cache hit на уже собранный qt/6.6.3.
     default_options = {
         "qt/*:shared": True,
         "qt/*:qtdeclarative": True,
@@ -382,22 +373,20 @@ class CoupeCADConan(ConanFile):
         tc.generate()
 ```
 
-- [ ] **Step 3: Проверить, что Conan устанавливает зависимости**
-
-Локально (требуется установленный Conan 2.x):
+- [ ] **Step 2: Установить зависимости через Conan**
 
 ```sh
 conan profile detect --force
 conan install . --build=missing -s build_type=Debug
 ```
 
-Ожидается: создаётся `build/default/conan_toolchain.cmake` и `build/default/Qt6Config.cmake` (плюс файлы для остальных Qt-модулей и для `gtest`). Команда заканчивается без ошибок.
+> **macOS, Xcode 26+ (apple-clang 21+):** Conan 2.27.x ещё не знает об этой версии Apple Clang, `conan profile detect` сохранит профиль с `compiler.version=21`, а любая операция упадёт с `Invalid setting`. Починка — отредактировать `~/.conan2/profiles/default` и поставить `compiler.version=17` (последняя известная Conan; ABI-совместимо).
 
-> **Внимание:** если для вашего профиля в Conan Center нет предсобранного бинаря Qt — Conan начнёт компилировать Qt из исходников. Это займёт 2–4 часа и потребует ~30 ГБ свободного места на диске. Результат закешируется в `~/.conan2` и следующие сборки будут быстрыми.
->
-> Убедитесь, что профиль совместим с бинарями ConanCenter (проверить можно через `conan list "qt/6.10.1:*" -r=conancenter` и сравнить свой профиль `conan profile show` с доступными). Обычно совместимы: GCC 11 + libstdc++11 на x86_64-linux; AppleClang на macOS (x86_64 и armv8); MSVC 2022 на Windows x86_64 — все в Release и Debug.
+> **Время выполнения:** если в вашем `~/.conan2` уже есть бинарь `qt/6.6.3` с теми же опциями (например, после прошлого проекта) — установка займёт секунды. Иначе Conan скомпилирует Qt из исходников: **2-4 часа**, ~30 ГБ диска. Это **разовая боль** на (OS, compiler) комбинацию. Спокойно дождитесь окончания.
 
-- [ ] **Step 4: Проверить, что CMake конфигурируется**
+Ожидается: после завершения создаются `build/default/conan_toolchain.cmake`, `build/default/Qt6Config.cmake`, `build/default/Qt6QmlConfig.cmake`, `build/default/Qt6QuickConfig.cmake`, `build/default/Qt6ShaderToolsConfig.cmake` и аналоги для `gtest`. Команда заканчивается без ошибок.
+
+- [ ] **Step 3: Проверить, что CMake конфигурируется**
 
 ```sh
 cmake --preset default
@@ -405,7 +394,7 @@ cmake --preset default
 
 Ожидается: CMake находит Qt6 через conan-generated `Qt6Config.cmake`, затем сообщает об ошибке про отсутствующий каталог `tests/` или таргет `coupecad` (это нормально — их добавят Task 4 и Task 5). Главное — **Qt6 найден** без внешних переменных окружения.
 
-- [ ] **Step 5: Закоммитить**
+- [ ] **Step 4: Закоммитить**
 
 ```sh
 git add conanfile.py
