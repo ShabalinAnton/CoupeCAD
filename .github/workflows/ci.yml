@@ -126,3 +126,61 @@ jobs:
   #       env:
   #         QT_QPA_PLATFORM: offscreen
   #       run: ctest --preset default --output-on-failure
+
+  build-windows:
+    name: Windows (windows-2022, MSVC 2022, Qt 6.7.3)
+    runs-on: windows-2022
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Conan and Ninja
+        run: |
+          pip install --upgrade pip
+          pip install "conan>=2.0,<3"
+          choco install ninja -y
+          conan profile detect --force
+
+      - name: Cache Conan home
+        uses: actions/cache@v4
+        with:
+          path: ~/.conan2
+          key: conan-windows-${{ hashFiles('conanfile.py') }}
+          restore-keys: |
+            conan-windows-
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.7.3'
+          host: windows
+          target: desktop
+          arch: win64_msvc2019_64
+          modules: 'qtshadertools'
+          cache: true
+
+      - name: Configure MSVC environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Conan install
+        run: conan install . --build=missing -s build_type=Debug
+
+      - name: Configure
+        run: cmake --preset default
+
+      - name: Build
+        run: cmake --build --preset default
+
+      - name: Test
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: ctest --preset default --output-on-failure
