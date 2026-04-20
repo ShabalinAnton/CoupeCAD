@@ -1078,12 +1078,16 @@ git push
 
 После всех задач должно быть истинно:
 
-- [ ] `git log --oneline | wc -l` ≥ 9 коммитов (по одному на задачу + первоначальные).
-- [ ] `cmake --list-presets` показывает `default` и `release`.
-- [ ] Локально на хост-ОС: `conan install . --build=missing && cmake --preset default && cmake --build --preset default && ctest --preset default` — зелёный.
-- [ ] `./build/default/bin/coupecad --version` печатает `CoupeCAD 0.1.0`.
-- [ ] Запуск `coupecad` без аргументов открывает пустое тёмное окно.
-- [ ] GitHub Actions: workflow `CI` зелёный на трёх ОС.
-- [ ] `docs/ARCHITECTURE.md` описывает структуру и стейджи.
+- [x] `git log --oneline | wc -l` ≥ 9 коммитов (по одному на задачу + первоначальные).
+- [x] `cmake --list-presets` показывает `default` и `release`.
+- [x] Локально на хост-ОС: `conan install . --build=missing && cmake --preset default && cmake --build --preset default && ctest --preset default` — зелёный.
+- [x] `./build/default/bin/coupecad --version` печатает `CoupeCAD 0.1.0`.
+- [x] Запуск `coupecad` без аргументов открывает пустое тёмное окно.
+- [~] GitHub Actions: workflow `CI` зелёный на Linux + Windows. **macOS job отложен** — на GitHub-hosted macos-13 runner queue зависал (1+ час без подхвата). Закомментирован в `ci.yml` с заметкой; вернуться позже (попробовать macos-14 или дождаться восстановления macos-13 очереди).
+- [x] `docs/ARCHITECTURE.md` описывает структуру и стейджи.
+
+**Известные локальные workaround'ы (не блокирующие):**
+- `cmake/stubs/AGL.framework/AGL.tbd` + `if(APPLE) target_link_options(... -F${CMAKE_SOURCE_DIR}/cmake/stubs)` в `apps/coupecad/CMakeLists.txt` — обход удаления AGL framework из macOS 26+ SDK; не нужно на macos-13 CI runner-е, нужно для локальной сборки на свежем Xcode. Уйдёт при апгрейде до Qt 6.8+.
+- На локальном macOS с одновременно установленными `aqtinstall` Qt 6.7.3 и Homebrew Qt 6.10.2 cmake может перепутать `Qt6*Tools_DIR`. Решается принудительной передачей `-DQt6CoreTools_DIR=...`/`-DQt6QmlTools_DIR=...` при первом `cmake --preset default`; значения кешируются в `build/default/CMakeCache.txt`. В CI этой проблемы нет.
 
 После этого можно переходить к Stage 1 (Core domain): новый brainstorming → новый mini-spec → новый план.
