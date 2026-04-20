@@ -35,8 +35,9 @@ conan install . --build=missing -s build_type=Debug
 cmake --preset default
 cmake --build --preset default
 ctest --preset default --output-on-failure
-./build/default/apps/coupecad/coupecad        # Linux/macOS
-./build/default/apps/coupecad/coupecad.exe    # Windows
+./build/default/bin/coupecad                                          # Linux
+./build/default/bin/coupecad.app/Contents/MacOS/coupecad              # macOS
+./build/default/bin/coupecad.exe                                      # Windows
 ```
 
 ## Структура проекта

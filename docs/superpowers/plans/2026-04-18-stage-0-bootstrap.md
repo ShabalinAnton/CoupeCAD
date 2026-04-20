@@ -201,8 +201,8 @@ conan install . --build=missing -s build_type=Debug
 cmake --preset default
 cmake --build --preset default
 ctest --preset default --output-on-failure
-./build/default/apps/coupecad/coupecad        # Linux/macOS
-./build/default/apps/coupecad/coupecad.exe    # Windows
+./build/default/bin/coupecad        # Linux/macOS
+./build/default/bin/coupecad.exe    # Windows
 ```
 
 ## Структура проекта
@@ -586,6 +586,11 @@ set_target_properties(coupecad PROPERTIES
     MACOSX_BUNDLE_GUI_IDENTIFIER "app.coupecad.coupecad"
     MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
     MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}"
+    # На Linux qt_add_qml_module создаёт подкаталог с именем URI
+    # ("coupecad/") в CMAKE_CURRENT_BINARY_DIR. Исполняемый файл легёт
+    # по тому же пути, давая link error "Is a directory". Поэтому
+    # выносим бинарь на уровень выше, в build/<preset>/bin/.
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 ```
 
@@ -597,12 +602,14 @@ cmake --preset default
 cmake --build --preset default --target coupecad
 ```
 
-Ожидается: бинарь `build/default/apps/coupecad/coupecad` (на Windows: `coupecad.exe`).
+Ожидается: бинарь `build/default/bin/coupecad` (на macOS: `build/default/bin/coupecad.app/Contents/MacOS/coupecad`; на Windows: `build/default/bin/coupecad.exe`).
 
 - [ ] **Step 5: Проверить `--version`**
 
 ```sh
-./build/default/apps/coupecad/coupecad --version
+./build/default/bin/coupecad --version                              # Linux
+./build/default/bin/coupecad.app/Contents/MacOS/coupecad --version  # macOS
+./build/default/bin/coupecad.exe --version                          # Windows
 ```
 
 Ожидается: вывод `CoupeCAD 0.1.0`, exit code 0.
@@ -610,7 +617,9 @@ cmake --build --preset default --target coupecad
 - [ ] **Step 6: Проверить запуск окна (визуально)**
 
 ```sh
-./build/default/apps/coupecad/coupecad
+./build/default/bin/coupecad                                          # Linux
+open ./build/default/bin/coupecad.app                                 # macOS
+./build/default/bin/coupecad.exe                                      # Windows
 ```
 
 Ожидается: открывается окно 1024×720 с тёмно-серым фоном и заголовком «CoupeCAD». Закрытие окна — exit code 0.
@@ -870,7 +879,7 @@ jobs:
           version: '6.7.3'
           host: linux
           target: desktop
-          arch: gcc_64
+          arch: linux_gcc_64
           modules: 'qtshadertools'
           cache: true
 
@@ -1029,7 +1038,7 @@ git push
           version: '6.7.3'
           host: windows
           target: desktop
-          arch: win64_msvc2022_64
+          arch: win64_msvc2019_64
           modules: 'qtshadertools'
           cache: true
 
@@ -1072,7 +1081,7 @@ git push
 - [ ] `git log --oneline | wc -l` ≥ 9 коммитов (по одному на задачу + первоначальные).
 - [ ] `cmake --list-presets` показывает `default` и `release`.
 - [ ] Локально на хост-ОС: `conan install . --build=missing && cmake --preset default && cmake --build --preset default && ctest --preset default` — зелёный.
-- [ ] `./build/default/apps/coupecad/coupecad --version` печатает `CoupeCAD 0.1.0`.
+- [ ] `./build/default/bin/coupecad --version` печатает `CoupeCAD 0.1.0`.
 - [ ] Запуск `coupecad` без аргументов открывает пустое тёмное окно.
 - [ ] GitHub Actions: workflow `CI` зелёный на трёх ОС.
 - [ ] `docs/ARCHITECTURE.md` описывает структуру и стейджи.
