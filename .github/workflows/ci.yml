@@ -65,57 +65,64 @@ jobs:
           QT_QPA_PLATFORM: offscreen
         run: ctest --preset default --output-on-failure
 
-  build-macos:
-    name: macOS (macos-13, AppleClang, Qt 6.7.3)
-    runs-on: macos-13
-    timeout-minutes: 60
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install system packages
-        run: brew install ninja
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install Conan
-        run: |
-          pip install --upgrade pip
-          pip install "conan>=2.0,<3"
-          conan profile detect --force
-
-      - name: Cache Conan home
-        uses: actions/cache@v4
-        with:
-          path: ~/.conan2
-          key: conan-macos-${{ hashFiles('conanfile.py') }}
-          restore-keys: |
-            conan-macos-
-
-      - name: Install Qt
-        uses: jurplel/install-qt-action@v4
-        with:
-          version: '6.7.3'
-          host: mac
-          target: desktop
-          arch: clang_64
-          modules: 'qtshadertools'
-          cache: true
-
-      - name: Conan install
-        run: conan install . --build=missing -s build_type=Debug
-
-      - name: Configure
-        run: cmake --preset default
-
-      - name: Build
-        run: cmake --build --preset default
-
-      - name: Test
-        env:
-          QT_QPA_PLATFORM: offscreen
-        run: ctest --preset default --output-on-failure
+  # macOS job temporarily disabled (2026-04-20): on the public org's
+  # GitHub-hosted macos-13 runner the job stayed `queued` for 1+ hour
+  # without a runner ever picking it up (cancelled after that). Re-enable
+  # by uncommenting once the macOS runner queue is responsive (or move to
+  # macos-14/macos-latest if that helps). Keep arch=clang_64 — verified
+  # via `aqt list-qt mac desktop --arch 6.7.3`.
+  #
+  # build-macos:
+  #   name: macOS (macos-13, AppleClang, Qt 6.7.3)
+  #   runs-on: macos-13
+  #   timeout-minutes: 60
+  #
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
+  #
+  #     - name: Install system packages
+  #       run: brew install ninja
+  #
+  #     - name: Set up Python
+  #       uses: actions/setup-python@v5
+  #       with:
+  #         python-version: '3.11'
+  #
+  #     - name: Install Conan
+  #       run: |
+  #         pip install --upgrade pip
+  #         pip install "conan>=2.0,<3"
+  #         conan profile detect --force
+  #
+  #     - name: Cache Conan home
+  #       uses: actions/cache@v4
+  #       with:
+  #         path: ~/.conan2
+  #         key: conan-macos-${{ hashFiles('conanfile.py') }}
+  #         restore-keys: |
+  #           conan-macos-
+  #
+  #     - name: Install Qt
+  #       uses: jurplel/install-qt-action@v4
+  #       with:
+  #         version: '6.7.3'
+  #         host: mac
+  #         target: desktop
+  #         arch: clang_64
+  #         modules: 'qtshadertools'
+  #         cache: true
+  #
+  #     - name: Conan install
+  #       run: conan install . --build=missing -s build_type=Debug
+  #
+  #     - name: Configure
+  #       run: cmake --preset default
+  #
+  #     - name: Build
+  #       run: cmake --build --preset default
+  #
+  #     - name: Test
+  #       env:
+  #         QT_QPA_PLATFORM: offscreen
+  #       run: ctest --preset default --output-on-failure
