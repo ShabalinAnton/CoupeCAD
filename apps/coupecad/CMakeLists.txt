@@ -23,6 +23,11 @@ set_target_properties(coupecad PROPERTIES
     MACOSX_BUNDLE_GUI_IDENTIFIER "app.coupecad.coupecad"
     MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
     MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}"
+    # On Linux, qt_add_qml_module creates a subdirectory named after the URI
+    # ("coupecad/") in CMAKE_CURRENT_BINARY_DIR. The executable would land
+    # at the same path, causing a linker error ("Is a directory"). Place the
+    # runtime binary one level up to avoid the collision.
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 
 # AGL was removed from macOS 26+ SDK. Supply a minimal TBD stub so the
