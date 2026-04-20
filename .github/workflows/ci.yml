@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-linux:
+    name: Linux (Ubuntu 22.04, GCC, Qt 6.7.3)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install system packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libgl1-mesa-dev libxkbcommon-dev \
+              libxcb-cursor0 libdbus-1-3 xvfb
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Conan
+        run: |
+          pip install --upgrade pip
+          pip install "conan>=2.0,<3"
+          conan profile detect --force
+
+      - name: Cache Conan home
+        uses: actions/cache@v4
+        with:
+          path: ~/.conan2
+          key: conan-linux-${{ hashFiles('conanfile.py') }}
+          restore-keys: |
+            conan-linux-
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.7.3'
+          host: linux
+          target: desktop
+          arch: gcc_64
+          modules: 'qtshadertools'
+          cache: true
+
+      - name: Conan install
+        run: conan install . --build=missing -s build_type=Debug
+
+      - name: Configure
+        run: cmake --preset default
+
+      - name: Build
+        run: cmake --build --preset default
+
+      - name: Test
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: ctest --preset default --output-on-failure
