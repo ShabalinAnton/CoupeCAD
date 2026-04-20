@@ -1,0 +1,15 @@
+--- !tapi-tbd
+tbd-version:     4
+targets:         [ arm64-macos, arm64e-macos, x86_64-macos ]
+install-name:    '/System/Library/Frameworks/AGL.framework/Versions/A/AGL'
+exports:
+  - targets:         [ arm64-macos, arm64e-macos, x86_64-macos ]
+    symbols:         [ _AGLChoosePixelFormat, _AGLClearDrawable, _AGLCopyContext, 
+                       _AGLCreateContext, _AGLDestroyContext, _AGLDestroyPixelFormat,
+                       _AGLDisable, _AGLEnable, _AGLErrorString, _AGLFlushDrawable,
+                       _AGLGetConfig, _AGLGetInteger, _AGLGetOption, _AGLGetPBuffer,
+                       _AGLGetVersion, _AGLGetVirtualScreen, _AGLIsEnabled,
+                       _AGLSetConfig, _AGLSetCurrentContext, _AGLSetDrawable,
+                       _AGLSetFullScreen, _AGLSetInteger, _AGLSetOption, _AGLSetPBuffer,
+                       _AGLSetVirtualScreen, _AGLSwapBuffers, _AGLUpdateContext ]
+...
