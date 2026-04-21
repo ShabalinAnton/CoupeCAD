@@ -10,18 +10,19 @@
 
 ## 1. Цель и границы Stage 1
 
-**Что Stage 1 производит.** Доменную модель в `src/coupecad/core/`: структуры данных (Project → Cabinet → Panels + Hardware + Materials), команды изменения с undo/redo, чтение/запись `.ccad`. Всё Qt-free, покрыто unit-тестами.
+**Что Stage 1 производит.** Доменную модель в `src/coupecad/core/` (структуры данных Project → Cabinet → Panels + Hardware + Materials, команды изменения с undo/redo, чтение/запись `.ccad`) **и** инфраструктурный модуль логирования в `src/coupecad/logging/` (см. §6). Оба Qt-free, покрыты unit-тестами.
 
 **Что НЕ входит.** Геометрия (OpenCASCADE — Stage 2), рендер (Stage 3+), UI (Stage 4+), реальные каталоги материалов и фурнитуры (Stage 6). Core оперирует только «логической» моделью: роль панели, её параметры, материал, кромка. Никакого реального 3D.
 
 **Definition of Done.**
 
 - Программно создаётся `Project` с одним `Cabinet`, добавляются панели по ролям (top/bottom/side/back/shelf/facade/...), назначаются материалы и кромка.
-- Любая правка оборачивается в `Command`; выполненное можно отменить (undo), затем повторить (redo).
+- Любая дискретная правка оборачивается в `Command`; интерактивная — в `PreviewableCommand` с `begin/update/commit/cancel`. И то и другое участвует в undo/redo (одна запись на интерактивную сессию).
 - Сохранение в `.ccad`-файл и открытие из него дают байт-в-байт тот же проект (при детерминированных UUID и timestamp, как в тестах).
-- Покрытие тестами Core ≥ 70% (lines).
+- Логгер `coupecad::logging::Logger` пишет в console и в файл с ротацией; уровень/sinks конфигурируются программно; покрыт тестами.
+- Покрытие тестами `coupecad_core` ≥ 70% (lines), `coupecad_logging` ≥ 70%.
 
-**Scope.** Stage 1 плотный (оценочно 4-5 недель). Концерны (entities, commands/undo, serialization) тесно связаны, поэтому всё описано **одним спеком**. Имплементационный план разделит работу на подстейджи: **Stage 1a** — entities + неизменяющие read API; **Stage 1b** — commands + undo stack; **Stage 1c** — `.ccad` I/O. Каждый подстейдж заканчивается набором зелёных тестов.
+**Scope.** Stage 1 плотный (оценочно 5-6 недель с учётом логирования). Концерны (entities, commands/undo, serialization) тесно связаны, поэтому всё описано **одним спеком**. Имплементационный план разделит работу на подстейджи: **Stage 1a** — `coupecad_logging` + entities + неизменяющие read API; **Stage 1b** — commands + undo stack (discrete + preview/commit); **Stage 1c** — `.ccad` I/O. Логирование вперёд, чтобы Core и тесты сразу могли его использовать. Каждый подстейдж заканчивается набором зелёных тестов.
 
 ---
 
@@ -45,7 +46,7 @@ Project
 |---|---|---|
 | `id` | `CabinetId` | UUID |
 | `name` | `string` | Человекочитаемое имя |
-| `dimensions` | `Dimensions` = `{width, height, depth: Millimeters}` | Внешние габариты |
+| `dimensions` | `Dimensions` = `{width, depth, height: Millimeters}` | Внешние габариты (см. §2.3 о маппинге на оси X/Y/Z) |
 | `default_panel_material` | `MaterialId` | Материал корпусных деталей по умолчанию |
 | `default_panel_thickness` | `Millimeters` | Обычно 16 или 18 мм |
 | `default_back_thickness` | `Millimeters` | Обычно 3-4 мм для ХДФ |
@@ -120,7 +121,15 @@ Project
 
 ### 2.3 Система координат
 
-Cabinet-local, **правосторонняя**: **X** вправо, **Y** вверх, **Z** к зрителю (от задней стенки к фасаду). Origin — **левый-нижний-задний угол** внешних габаритов.
+Cabinet-local, **правосторонняя, Z-up** (CAD-конвенция, как в AutoCAD/Blender):
+
+- **X** — вправо (вдоль ширины шкафа).
+- **Y** — вглубь, от зрителя к задней стенке (вдоль глубины шкафа).
+- **Z** — вверх (вдоль высоты шкафа).
+
+Origin — **левый-нижний-передний угол** внешних габаритов (`x=0, y=0, z=0` — точка, ближайшая к зрителю в левом нижнем углу). Задняя стенка лежит в плоскости `y = cabinet.depth`.
+
+В `Cabinet.dimensions = {width, depth, height}` поля по-прежнему семантические (а не «X/Y/Z»); маппинг: `width → X`, `depth → Y`, `height → Z`.
 
 Единицы — **миллиметры, целочисленно** (`Millimeters` = newtype над `int32_t`). Плавающая точка в Core не используется — избавляет от накопления ошибок при undo/redo и сериализации. Geometry-модуль в Stage 2 при необходимости переводит в double для OpenCASCADE.
 
@@ -140,11 +149,19 @@ public:
     virtual ChangeSet revert(Project& project) = 0;
     virtual std::string_view label() const noexcept = 0;
     virtual CommandKind kind() const noexcept = 0;
-    virtual bool try_merge(const Command& other) { return false; }  // default: не мержится
+};
+
+class PreviewableCommand : public Command {
+public:
+    // Изменить значение «на лету» в рамках активного preview-сеанса.
+    // См. §3.3.2.
+    virtual ChangeSet update(Project& project, const std::any& new_value) = 0;
 };
 ```
 
-`ChangeSet` описывает, какие сущности затронуты (см. §3.5). Возвращается и из `apply`, и из `revert`, чтобы `UndoStack` мог транслировать его наблюдателям.
+`ChangeSet` описывает, какие сущности затронуты (см. §3.5). Возвращается и из `apply`, и из `revert`, и из `update`, чтобы `UndoStack` мог транслировать его наблюдателям.
+
+Команды, которым имеет смысл интерактивная правка (слайдеры, drag), наследуются от `PreviewableCommand`. Дискретные операции (add/remove) — от обычного `Command`.
 
 Команды хранят только **UUIDs и дельты** (before/after), а не ссылки на сущности. Это делает их:
 
@@ -171,22 +188,38 @@ public:
 
 ### 3.3 UndoStack
 
+Две парадигмы правки:
+
+- **Discrete** — команда применяется атомарно и сразу попадает в стек. Подходит для дискретных действий: «добавить полку», «удалить панель», «выбрать материал из списка», «нажать +1 у счётчика ящиков».
+- **Live (preview)** — пользователь интерактивно крутит значение (слайдер, drag), модель меняется на лету для визуальной обратной связи, но **в стек ничего не попадает**. Только когда пользователь явно подтверждает результат («apply», release слайдера, Enter), на стек кладётся **одна** запись с дельтой `initial → final`. Если пользователь отменяет правку, изменение откатывается без записи в стек.
+
 ```cpp
 class UndoStack {
 public:
     explicit UndoStack(Project& project);
 
+    // Discrete-режим.
     void execute(std::unique_ptr<Command> cmd);
+
+    // Live-режим (preview/commit).
+    PreviewHandle begin_preview(std::unique_ptr<PreviewableCommand> cmd);
+    void          update_preview(PreviewHandle&, std::any new_value);
+    void          commit_preview(PreviewHandle&);   // → одна запись в стеке
+    void          cancel_preview(PreviewHandle&);   // → откат, стек не трогается
+
+    // Стандартные операции.
     void undo();
     void redo();
     bool can_undo() const;
     bool can_redo() const;
     std::span<const std::string_view> undo_labels() const;
-
     void clear();
+
+    // Макросы (для шаблонов и групповых дискретных операций).
     void begin_macro(std::string_view label);
     void end_macro();
 
+    // Наблюдатели.
     void add_observer(IProjectObserver*);
     void remove_observer(IProjectObserver*);
 
@@ -195,17 +228,76 @@ private:
     std::vector<std::unique_ptr<Command>> undo_;
     std::vector<std::unique_ptr<Command>> redo_;
     std::optional<MacroBuilder> macro_;
+    std::optional<ActivePreview> active_preview_;
     std::vector<IProjectObserver*> observers_;
 };
 ```
 
-`execute(cmd)` делает `cmd->apply(project_)`, пушит в `undo_`, очищает `redo_`. `undo()` поп-ит из `undo_`, вызывает `revert()`, пушит в `redo_`. И наоборот для `redo()`.
+#### 3.3.1 Discrete
 
-**Merge.** Чтобы крутящий слайдер ширины не раздувал стек до сотни записей, команды того же `kind()` на одной и той же цели в пределах временнОго окна (по умолчанию 500 мс) **сливаются**: новая команда принимает `old_value` первой и заменяет её. Реализуется через `Command::try_merge(const Command& other) -> bool`. Сливаются: `SetCabinetDimensions`, `UpdatePanelRoleParams`, `SetPanelMaterial`, `SetPanelThickness`. Остальные (add/remove) — нет.
+`execute(cmd)`:
+1. Запрещено, если активен preview (`active_preview_.has_value()`) — бросает `LogicError::PreviewActive` (вызывающий код должен сначала commit или cancel).
+2. Вызывает `cmd->apply(project_)`, получает `ChangeSet`.
+3. Пушит `cmd` в `undo_`, очищает `redo_`.
+4. Транслирует `ChangeSet` наблюдателям.
 
-**Макросы.** `begin_macro(label)` открывает накопление команд. Все последующие `execute()` до `end_macro()` добавляются в строящийся `MacroCommand`, который по закрытию кладётся в стек как единое целое.
+`undo()` — поп из `undo_`, `revert(project_)`, пуш в `redo_`, события. `redo()` — симметрично.
 
-**Persistence.** В v1 undo-стек **не сохраняется** в `.ccad`. Открытие файла → пустой стек. Это упрощает формат и соответствует поведению большинства CAD.
+#### 3.3.2 Live (preview/commit)
+
+Подмножество команд реализует расширенный интерфейс:
+
+```cpp
+class PreviewableCommand : public Command {
+public:
+    // Применить начальное значение (= зафиксированное на момент begin_preview)
+    // и запомнить «initial» снимок для отката/коммита.
+    ChangeSet apply(Project&) override = 0;
+
+    // Изменить значение «на лету»: мутирует Project в новое состояние,
+    // не трогая зафиксированный «initial». Возвращает ChangeSet.
+    virtual ChangeSet update(Project&, const std::any& new_value) = 0;
+
+    // Откатить Project обратно в «initial».
+    ChangeSet revert(Project&) override = 0;
+};
+```
+
+Сценарий:
+
+1. `begin_preview(cmd)`:
+   - Запрещено, если уже активен preview.
+   - `cmd->apply(project_)` — переводит Project в начальное состояние правки, фиксирует «initial» внутри команды (это и есть `old_value` для будущей записи в стеке).
+   - Возвращает `PreviewHandle` (opaque, привязан к UndoStack).
+   - События наблюдателям.
+
+2. `update_preview(handle, new_value)` (вызывается многократно):
+   - `cmd->update(project_, new_value)` — Project мутируется в текущее «live» значение.
+   - События наблюдателям.
+   - **В стек ничего не пишется.**
+
+3. `commit_preview(handle)`:
+   - Текущее состояние Project — это «final value». Команда уже знает свой `initial`.
+   - Команда (с уже зафиксированными initial и final) кладётся в `undo_`.
+   - `redo_` очищается.
+   - **Один пуш в стек на всю серию update'ов.**
+
+4. `cancel_preview(handle)`:
+   - `cmd->revert(project_)` — Project возвращается в «initial».
+   - Команда уничтожается.
+   - **В стек ничего не пишется.**
+
+Какие команды должны быть `PreviewableCommand` в v1: `SetCabinetDimensions`, `UpdatePanelRoleParams`, `SetPanelThickness`. Остальные (add/remove material, add/remove panel, add/remove hardware, edge banding по сторонам) — дискретные: их интерактивно «крутить» нечего.
+
+Активный preview — **строго один** в моменте (одна интерактивная сессия). Это исключает гонки в Stage 4 (UI-сторона должна сама гарантировать завершение текущего preview перед началом следующего).
+
+#### 3.3.3 Макросы
+
+`begin_macro(label)` открывает накопление дискретных команд. Все `execute()` между `begin_macro/end_macro` добавляются в строящийся `MacroCommand`, который по закрытию кладётся в стек как единое целое. Live preview внутри макроса запрещён (бросает `LogicError::PreviewInsideMacro`) — макрос для атомарных композиций, не для интерактивных правок.
+
+#### 3.3.4 Persistence
+
+В v1 undo/redo стеки **не сохраняются** в `.ccad`. Открытие файла → пустой стек. Это упрощает формат и соответствует поведению большинства CAD. Активный preview в `.ccad` тоже не сохраняется (если пользователь сохранит во время preview — сохранится текущее «live» состояние Project как обычный snapshot, без записи в стек).
 
 ### 3.4 Валидация
 
@@ -297,7 +389,7 @@ UTF-8 без BOM, отступ 2 пробела (git-friendly diff). Все UUID
     "cabinet": {
         "id": "a3f8e2c1-...",
         "name": "Cabinet",
-        "dimensions_mm": {"width": 2400, "height": 2400, "depth": 600},
+        "dimensions_mm": {"width": 2400, "depth": 600, "height": 2400},
         "default_panel_material": "...",
         "default_panel_thickness_mm": 16,
         "default_back_thickness_mm": 4,
@@ -494,13 +586,14 @@ target_include_directories(coupecad_core
 target_link_libraries(coupecad_core
     PUBLIC
         nlohmann_json::nlohmann_json
+        coupecad_logging
     PRIVATE
         libzip::libzip
         stduuid::stduuid
 )
 ```
 
-**`coupecad_core` не линкуется ни с Qt, ни с OpenCASCADE.** Зависит только от `nlohmann_json` (публично), `libzip` и `stduuid` (приватно — детали реализации io). Новые Conan-зависимости добавятся в `conanfile.py` в Stage 1c.
+**`coupecad_core` не линкуется ни с Qt, ни с OpenCASCADE.** Публичные зависимости — `nlohmann_json` (типы из API сериализации) и `coupecad_logging` (любой пользователь Core может логгировать через ту же подсистему). Приватные — `libzip` и `stduuid` (детали реализации io). Новые Conan-зависимости добавятся в `conanfile.py` по подстейджам.
 
 ### 5.3 Пример клиентского кода
 
@@ -522,7 +615,7 @@ undo.execute(std::move(mat_cmd));
 // Cabinet.
 undo.execute(std::make_unique<SetCabinetDimensions>(
     project.cabinet().id(),
-    Dimensions{2400, 2400, 600}));
+    Dimensions{.width = 2400, .depth = 600, .height = 2400}));
 undo.execute(std::make_unique<SetCabinetDefaults>(
     project.cabinet().id(), mat_id, Millimeters{16}, Millimeters{4}));
 
@@ -566,12 +659,143 @@ Project loaded = CcadArchive::load("my_wardrobe.ccad", s);
 
 ---
 
-## 6. Открытые вопросы
+## 6. Логирование
+
+CoupeCAD-у нужен унифицированный логгер: ошибки, варнинги, диагностика реактивных пересчётов, события open/save файла, аномалии в данных. Используется и Core'ом (для DomainError-выбросов и валидационных предупреждений), и в будущем — UI/рендером/I/O. Поэтому логгер — **отдельный модуль `src/coupecad/logging/`**, не внутри Core, и Core зависит от него (а не наоборот).
+
+### 6.1 Уровни
+
+Шесть стандартных уровней (от тихого к шумному):
+
+| Уровень | Когда |
+|---|---|
+| `Off` | Логирование выключено целиком (для тестов, перфоманс-режима). |
+| `Critical` | Невосстановимая ошибка: повреждён файл, недоступный ресурс, программная инвариантная ошибка. После такого вызова часто следует exception. |
+| `Error` | Восстановимая ошибка: операция отвалилась, но приложение продолжает работать (валидация команды, сетевая ошибка обновления подписки). |
+| `Warning` | Подозрительное состояние, не блокирующее: устаревший формат, потенциальная потеря данных, чек-сумма не сошлась. |
+| `Info` | Существенное событие нормального хода: «открыт проект X», «сохранён `.ccad`», «применена команда такая-то». |
+| `Debug` | Тонкая диагностика: входы/выходы команд, размеры структур, переходы состояний. По умолчанию выключено. |
+| `Trace` | Очень шумно: каждый пересчёт геометрии, каждое событие observer'а. Для разработки конкретной фичи. |
+
+`Off < Critical < Error < Warning < Info < Debug < Trace`.
+
+### 6.2 API
+
+```cpp
+namespace coupecad::logging {
+
+enum class Level { Off, Critical, Error, Warning, Info, Debug, Trace };
+
+class Logger {
+public:
+    static Logger& instance();   // process-wide singleton (см. §6.5 о тестах)
+
+    void log(Level, std::string_view category, std::string_view message,
+             std::source_location loc = std::source_location::current());
+
+    // Удобные шорткаты.
+    template<class... Args>
+    void critical(std::string_view category, fmt::format_string<Args...> fmt, Args&&...);
+    template<class... Args>
+    void error(   std::string_view category, fmt::format_string<Args...> fmt, Args&&...);
+    template<class... Args>
+    void warn(    std::string_view category, fmt::format_string<Args...> fmt, Args&&...);
+    template<class... Args>
+    void info(    std::string_view category, fmt::format_string<Args...> fmt, Args&&...);
+    template<class... Args>
+    void debug(   std::string_view category, fmt::format_string<Args...> fmt, Args&&...);
+    template<class... Args>
+    void trace(   std::string_view category, fmt::format_string<Args...> fmt, Args&&...);
+
+    // Конфигурация.
+    void set_min_level(Level);
+    Level min_level() const;
+
+    // Управление выводами (sinks).
+    void enable_console(bool);
+    void enable_file(bool);
+    void set_log_file_path(std::filesystem::path);   // меняет файл на лету
+    std::filesystem::path log_file_path() const;
+
+    // Категорийные фильтры (опционально, поверх min_level).
+    void set_category_level(std::string_view category, Level);
+};
+
+}  // namespace coupecad::logging
+```
+
+`category` — короткий строковый ключ модуля-источника (`"core.commands"`, `"core.io"`, `"renderer"`, `"ui"`, `"licensing"`). По нему фильтруются выводы и по нему же оператор поддержки или разработчик быстро находит нужные строки.
+
+`std::source_location` фиксируется автоматически и попадает в строку лога (`file:line`).
+
+### 6.3 Поведение по умолчанию
+
+- Уровень: `Info`.
+- Sinks: **console (stderr)** и **файл** — оба включены.
+- Файл: `<platform-specific user log dir>/CoupeCAD/log/coupecad-YYYY-MM-DD.log`. Платформенные пути:
+  - Linux: `$XDG_STATE_HOME/CoupeCAD/log/` (фолбэк `~/.local/state/CoupeCAD/log/`).
+  - macOS: `~/Library/Logs/CoupeCAD/`.
+  - Windows: `%LOCALAPPDATA%\CoupeCAD\log\`.
+- Файл **ротируется по дате** (новый файл каждый день) и **по размеру** (≥ 10 МБ → ротация в `coupecad-...-1.log`); сохраняется последние 7 файлов.
+- Формат строки: `2026-04-21T12:34:56.789Z [INFO ] core.commands  panel_commands.cpp:142  AddPanel(role=Shelf) applied → PanelId=...`.
+
+### 6.4 Отключение
+
+- `Logger::instance().set_min_level(Level::Off)` — глушит всё.
+- `Logger::instance().enable_console(false)` / `enable_file(false)` — раздельно отключают каждый sink.
+- Эти настройки переопределяются при следующем запуске (хранение конфигурации — задача Stage 4 UI или CLI-флага; в Stage 1 — только программный API).
+- В тестах: фикстура `LoggingFixture` в `tests/logging/` ставит `Off` перед каждым тестом, восстанавливает после.
+
+### 6.5 Реализация
+
+- Под капотом — **`spdlog`** через Conan (`spdlog/1.13.0+`, header-only режим). Библиотека зрелая, потокобезопасная, быстрая, MIT-лицензия. Совместима с `fmt` (тоже Conan, transitive).
+- Наш `coupecad::logging::Logger` — **тонкая обёртка** над spdlog: один `spdlog::logger` под капотом с двумя sinks (`spdlog::sinks::stderr_color_sink_mt` и `spdlog::sinks::daily_file_sink_mt` + size-rotating адаптер). Обёртка нужна, чтобы (а) не тащить `spdlog` в публичные заголовки Core, (б) можно было легко подменить движок в будущем.
+- Logger — process-wide singleton с lazy-init. Для тестов есть `Logger::reset_for_test()` (доступен только из тестового заголовка), пересоздающий singleton чистым.
+- Потокобезопасность: все методы `Logger` — thread-safe (спасибо spdlog `_mt`-сink'ам). Core пока однопоточный, но UI и будущий рендер — нет.
+
+### 6.6 CMake target
+
+```cmake
+# src/coupecad/logging/CMakeLists.txt
+add_library(coupecad_logging STATIC
+    logger.cpp
+)
+
+target_include_directories(coupecad_logging
+    PUBLIC ${CMAKE_SOURCE_DIR}/src
+)
+
+target_link_libraries(coupecad_logging
+    PUBLIC
+        fmt::fmt
+    PRIVATE
+        spdlog::spdlog
+)
+```
+
+`coupecad_core` линкуется с `coupecad_logging` (PUBLIC, чтобы пользователи Core могли логгировать своими категориями) и использует через `coupecad::logging::Logger::instance()`. Logger Qt-free.
+
+### 6.7 Тестирование
+
+В `tests/logging/`:
+
+- Уровни: установка min_level скрывает нижестоящие уровни.
+- Категорийные фильтры: per-category level переопределяет глобальный.
+- Sinks: отключение console / file независимо.
+- Файловый sink: создаётся в указанной директории, ротация по размеру и дате (с mockable clock — переиспользуем `IClock` из Core).
+- Корректность форматирования (timestamp, level, category, source location).
+- Концурренция: 8 потоков одновременно пишут 1000 сообщений каждый — все строки попадают в файл целиком (без перемешивания символов).
+
+Покрытие тестами `coupecad_logging` — также ≥ 70%.
+
+---
+
+## 7. Открытые вопросы
 
 Решения, сознательно отложенные до implementation-плана или последующих стейджей:
 
 1. **Политика `copy` vs `move` для Command:** все ли команды запрещают copy? (Вероятно да — команды non-copyable, non-movable после `execute`, чтобы избежать случайного повторного apply.) Детализируется в Stage 1b.
-2. **Точный tolerance merge-окна:** 500 мс — грубая оценка. Отточится при подключении UI в Stage 4, когда появится реальный слайдер и можно замерить UX.
-3. **Локализация ошибок:** `DomainError::what()` — английский текст + machine-readable `code: std::string_view`. UI в Stage 4+ маппит код на локализованный текст. Фиксируется при реализации в Stage 1a.
-4. **Профиль `IProjectObserver`:** синхронные вызовы в рамках `execute()` — дёшево, но потенциально блокирует правки «изнутри» обсервера. Альтернатива — deferred-очередь. Решается в Stage 4, когда появится реальный consumer.
-5. **Максимальный размер undo-стека:** безлимит или порог (напр. 1000 команд)? Для v1 — безлимит; добавить лимит, только если проявится проблема памяти.
+2. **Локализация ошибок:** `DomainError::what()` — английский текст + machine-readable `code: std::string_view`. UI в Stage 4+ маппит код на локализованный текст. Фиксируется при реализации в Stage 1a.
+3. **Профиль `IProjectObserver`:** синхронные вызовы в рамках `execute()` — дёшево, но потенциально блокирует правки «изнутри» обсервера. Альтернатива — deferred-очередь. Решается в Stage 4, когда появится реальный consumer.
+4. **Максимальный размер undo-стека:** безлимит или порог (напр. 1000 команд)? Для v1 — безлимит; добавить лимит, только если проявится проблема памяти.
+5. **Тип `new_value` в preview:** `std::any` — простой и универсальный, но без type-safety. Альтернатива — шаблонный `PreviewableCommand<NewValueT>` или variant с фиксированным набором. Для v1 идём через `std::any` (минимум boilerplate); рефакторим на typed, если в реальной интеграции с UI окажется неудобно.
