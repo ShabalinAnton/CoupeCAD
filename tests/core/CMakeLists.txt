@@ -1,0 +1,13 @@
+add_executable(coupecad_core_test
+    units_test.cpp
+)
+
+target_link_libraries(coupecad_core_test
+    PRIVATE
+        coupecad_core
+        GTest::gtest
+        GTest::gtest_main
+)
+
+include(GoogleTest)
+gtest_discover_tests(coupecad_core_test)
