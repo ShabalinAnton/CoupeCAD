@@ -8,6 +8,7 @@
 
 #include "coupecad/logging/log_paths.h"
 
+#include <cstdio>
 #include <mutex>
 #include <unordered_map>
 #include <string>
@@ -46,13 +47,33 @@ struct Logger::Impl {
             sinks.push_back(std::make_shared<spdlog::sinks::stderr_color_sink_mt>());
         }
         if (file_on && !file_path.empty()) {
-            std::error_code ec;
-            std::filesystem::create_directories(file_path.parent_path(), ec);
-            // 10 MB на файл, держим последние 7 файлов.
             constexpr std::size_t kMaxFileBytes = 10ull * 1024 * 1024;
             constexpr std::size_t kMaxFiles = 7;
-            sinks.push_back(std::make_shared<spdlog::sinks::rotating_file_sink_mt>(
-                file_path.string(), kMaxFileBytes, kMaxFiles));
+            std::error_code ec;
+            std::filesystem::create_directories(file_path.parent_path(), ec);
+            if (ec) {
+                // Не можем создать каталог — остаёмся только с console-sink,
+                // ничего не бросаем, чтобы вызов enable_file(true) или создание
+                // singleton'а не роняли приложение.
+                std::fputs(
+                    fmt::format("coupecad_logging: cannot create log directory '{}': {}\n",
+                                file_path.parent_path().string(),
+                                ec.message()).c_str(),
+                    stderr);
+            } else {
+                try {
+                    sinks.push_back(std::make_shared<spdlog::sinks::rotating_file_sink_mt>(
+                        file_path.string(), kMaxFileBytes, kMaxFiles));
+                } catch (const std::exception& e) {
+                    // Не удалось открыть файл (права, readonly FS, и т. п.).
+                    // Продолжаем без file-sink.
+                    std::fputs(
+                        fmt::format("coupecad_logging: cannot open log file '{}': {}\n",
+                                    file_path.string(),
+                                    e.what()).c_str(),
+                        stderr);
+                }
+            }
         }
         spd = std::make_shared<spdlog::logger>(
             "coupecad", sinks.begin(), sinks.end());

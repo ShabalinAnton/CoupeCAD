@@ -65,3 +65,20 @@ TEST_F(LoggerFileTest, RespectsMinLevel) {
     EXPECT_EQ(contents.find("should be filtered"), std::string::npos);
     EXPECT_NE(contents.find("should be present"), std::string::npos);
 }
+
+TEST_F(LoggerFileTest, UnwritableDirectoryDoesNotCrash) {
+    // Put the log file inside a "directory" that is actually a regular file
+    // — create_directories will fail. Ensure Logger survives and console
+    // sink still works.
+    auto blocker = tmp_dir_ / "blocker";
+    {
+        std::ofstream f(blocker);
+        f << "this is a file, not a directory\n";
+    }
+    auto bad_log = blocker / "out.log";   // parent is a file → mkdir fails
+    Logger::instance().enable_console(false);
+    // Should not throw.
+    EXPECT_NO_THROW(Logger::instance().set_log_file_path(bad_log));
+    // Logger should still work (without writing to file).
+    EXPECT_NO_THROW(Logger::instance().info("test", "no crash"));
+}
