@@ -30,6 +30,7 @@ endif()
 find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Qml Quick)
 qt_standard_project_setup(REQUIRES 6.5)
 
+add_subdirectory(src)
 add_subdirectory(apps/coupecad)
 
 if(COUPECAD_BUILD_TESTS)

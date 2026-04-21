@@ -8,14 +8,17 @@ class CoupeCADConan(ConanFile):
     settings = "os", "compiler", "build_type", "arch"
 
     # Stage 0: только GoogleTest. Qt подключается извне (aqtinstall/install-qt-action).
+    # Stage 1a: добавляются spdlog (логирование), fmt (форматирование),
+    # stduuid (UUID для id.h).
     # OpenCASCADE добавится в Stage 2 (Geometry layer).
     def requirements(self):
+        self.requires("spdlog/1.13.0")
+        self.requires("fmt/10.2.1")
+        self.requires("stduuid/1.2.3")
         self.test_requires("gtest/1.14.0")
 
     def layout(self):
         cmake_layout(self)
-        # Принудительно используем build/default/ как на Linux/macOS,
-        # так и на Windows, чтобы CMakePresets.json совпадал с conan layout.
         self.folders.build = "build/default"
         self.folders.generators = "build/default"
 
