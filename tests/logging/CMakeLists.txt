@@ -2,6 +2,8 @@ add_executable(coupecad_logger_test
     logger_levels_test.cpp
     logger_sinks_test.cpp
     logger_file_rotation_test.cpp
+    logger_categories_test.cpp
+    logger_concurrent_test.cpp
 )
 
 target_link_libraries(coupecad_logger_test

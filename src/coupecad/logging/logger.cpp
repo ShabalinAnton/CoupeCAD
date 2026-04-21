@@ -77,7 +77,9 @@ struct Logger::Impl {
         }
         spd = std::make_shared<spdlog::logger>(
             "coupecad", sinks.begin(), sinks.end());
-        spd->set_level(to_spd(min_level));
+        // Set spdlog to Trace level so that all messages reach our is_enabled() filter.
+        // We do filtering via is_enabled() to support per-category level overrides.
+        spd->set_level(spdlog::level::trace);
         spd->set_pattern("%Y-%m-%dT%H:%M:%S.%e%z [%^%l%$] %v");
         spd->flush_on(spdlog::level::warn);
     }
@@ -144,7 +146,9 @@ void Logger::log(Level level,
 void Logger::set_min_level(Level level) {
     std::lock_guard lk(impl_->mu);
     impl_->min_level = level;
-    impl_->spd->set_level(to_spd(level));
+    // Don't change spdlog's level here — we always keep it at Trace
+    // to allow per-category level overrides to work. Filtering happens
+    // in is_enabled().
 }
 
 Level Logger::min_level() const {
