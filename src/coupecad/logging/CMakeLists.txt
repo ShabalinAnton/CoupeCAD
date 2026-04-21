@@ -3,6 +3,7 @@ find_package(fmt REQUIRED)
 
 add_library(coupecad_logging STATIC
     logger.cpp
+    log_paths.cpp
 )
 
 target_include_directories(coupecad_logging

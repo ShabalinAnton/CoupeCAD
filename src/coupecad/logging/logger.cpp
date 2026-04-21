@@ -2,8 +2,11 @@
 
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
+#include <spdlog/sinks/rotating_file_sink.h>
 
 #include <fmt/format.h>
+
+#include "coupecad/logging/log_paths.h"
 
 #include <mutex>
 #include <unordered_map>
@@ -42,7 +45,15 @@ struct Logger::Impl {
         if (console_on) {
             sinks.push_back(std::make_shared<spdlog::sinks::stderr_color_sink_mt>());
         }
-        // File sink будет добавлен в Task 3.
+        if (file_on && !file_path.empty()) {
+            std::error_code ec;
+            std::filesystem::create_directories(file_path.parent_path(), ec);
+            // 10 MB на файл, держим последние 7 файлов.
+            constexpr std::size_t kMaxFileBytes = 10ull * 1024 * 1024;
+            constexpr std::size_t kMaxFiles = 7;
+            sinks.push_back(std::make_shared<spdlog::sinks::rotating_file_sink_mt>(
+                file_path.string(), kMaxFileBytes, kMaxFiles));
+        }
         spd = std::make_shared<spdlog::logger>(
             "coupecad", sinks.begin(), sinks.end());
         spd->set_level(to_spd(min_level));
@@ -62,11 +73,13 @@ void Logger::reset_for_test() {
     inst.impl_->min_level = Level::Info;
     inst.impl_->console_on = true;
     inst.impl_->file_on = true;
+    inst.impl_->file_path = default_log_file_path();
     inst.impl_->category_levels.clear();
     inst.impl_->rebuild();
 }
 
 Logger::Logger() : impl_(new Impl()) {
+    impl_->file_path = default_log_file_path();
     impl_->rebuild();
 }
 
