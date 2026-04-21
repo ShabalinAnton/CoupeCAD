@@ -44,3 +44,6 @@ ui_*.h
 # Test artefacts
 Testing/
 CTestTestfile.cmake
+
+# Tooling logs (aqtinstall, etc.)
+*.log
