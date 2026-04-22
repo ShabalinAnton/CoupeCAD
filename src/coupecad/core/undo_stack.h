@@ -4,6 +4,7 @@
 #include "coupecad/core/commands/command.h"
 #include "coupecad/core/project.h"
 
+#include <any>
 #include <memory>
 #include <string_view>
 #include <vector>
@@ -43,11 +44,29 @@ public:
     void add_observer(IProjectObserver* obs);
     void remove_observer(IProjectObserver* obs);
 
+    // --- Live preview (см. spec §3.3.2) ---
+    class PreviewHandle {
+    public:
+        PreviewHandle() = default;
+        bool is_active() const noexcept { return active_; }
+    private:
+        friend class UndoStack;
+        bool active_ = false;
+    };
+
+    PreviewHandle begin_preview(std::unique_ptr<PreviewableCommand> cmd);
+    void update_preview(PreviewHandle& handle, const std::any& new_value);
+    void commit_preview(PreviewHandle& handle);
+    void cancel_preview(PreviewHandle& handle);
+
+    bool preview_active() const noexcept { return active_preview_ != nullptr; }
+
 private:
     Project& project_;
     std::vector<std::unique_ptr<Command>> undo_;
     std::vector<std::unique_ptr<Command>> redo_;
     std::unique_ptr<MacroCommand> pending_macro_;
+    std::unique_ptr<PreviewableCommand> active_preview_;
     std::vector<IProjectObserver*> observers_;
 
     void notify(const ChangeSet& cs);

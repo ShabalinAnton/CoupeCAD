@@ -9,6 +9,7 @@ add_executable(coupecad_core_test
     geometry_test.cpp
     undo_stack_test.cpp
     undo_stack_macro_test.cpp
+    undo_stack_preview_test.cpp
 )
 
 target_link_libraries(coupecad_core_test
