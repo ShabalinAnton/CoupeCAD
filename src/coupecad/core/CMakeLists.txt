@@ -1,5 +1,6 @@
 find_package(stduuid REQUIRED)
 find_package(fmt REQUIRED)
+find_package(nlohmann_json REQUIRED)
 
 add_library(coupecad_core STATIC
     id.cpp
@@ -17,6 +18,7 @@ add_library(coupecad_core STATIC
     commands/hardware_spec_commands.cpp
     commands/macro_command.cpp
     undo_stack.cpp
+    io/json_project_serializer.cpp
 )
 
 target_include_directories(coupecad_core
@@ -28,6 +30,7 @@ target_link_libraries(coupecad_core
         coupecad_logging
         fmt::fmt
         stduuid::stduuid
+        nlohmann_json::nlohmann_json
 )
 
 target_compile_features(coupecad_core PUBLIC cxx_std_20)
