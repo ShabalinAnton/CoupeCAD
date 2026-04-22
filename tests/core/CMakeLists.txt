@@ -18,3 +18,5 @@ target_link_libraries(coupecad_core_test
 
 include(GoogleTest)
 gtest_discover_tests(coupecad_core_test)
+
+add_subdirectory(commands)

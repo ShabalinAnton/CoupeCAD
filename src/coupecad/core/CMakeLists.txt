@@ -9,6 +9,7 @@ add_library(coupecad_core STATIC
     cabinet.cpp
     project.cpp
     geometry.cpp
+    commands/change_set.cpp
 )
 
 target_include_directories(coupecad_core
