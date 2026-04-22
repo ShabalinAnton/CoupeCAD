@@ -1,6 +1,7 @@
 find_package(stduuid REQUIRED)
 find_package(fmt REQUIRED)
 find_package(nlohmann_json REQUIRED)
+find_package(libzip REQUIRED)
 
 add_library(coupecad_core STATIC
     id.cpp
@@ -20,6 +21,7 @@ add_library(coupecad_core STATIC
     undo_stack.cpp
     io/json_project_serializer.cpp
     io/schema_migration.cpp
+    io/ccad_archive.cpp
 )
 
 target_include_directories(coupecad_core
@@ -32,6 +34,8 @@ target_link_libraries(coupecad_core
         fmt::fmt
         stduuid::stduuid
         nlohmann_json::nlohmann_json
+    PRIVATE
+        libzip::zip
 )
 
 target_compile_features(coupecad_core PUBLIC cxx_std_20)
