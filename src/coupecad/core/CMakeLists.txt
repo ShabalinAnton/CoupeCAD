@@ -6,6 +6,7 @@ add_library(coupecad_core STATIC
     material.cpp
     hardware.cpp
     panel.cpp
+    cabinet.cpp
 )
 
 target_include_directories(coupecad_core
