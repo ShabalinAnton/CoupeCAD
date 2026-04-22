@@ -15,6 +15,7 @@ add_library(coupecad_core STATIC
     commands/material_commands.cpp
     commands/hardware_commands.cpp
     commands/hardware_spec_commands.cpp
+    commands/macro_command.cpp
 )
 
 target_include_directories(coupecad_core
