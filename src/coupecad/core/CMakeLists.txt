@@ -12,6 +12,7 @@ add_library(coupecad_core STATIC
     commands/change_set.cpp
     commands/cabinet_commands.cpp
     commands/panel_commands.cpp
+    commands/material_commands.cpp
 )
 
 target_include_directories(coupecad_core
