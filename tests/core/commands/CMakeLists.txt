@@ -4,6 +4,7 @@ add_executable(coupecad_commands_test
     panel_commands_test.cpp
     material_commands_test.cpp
     hardware_commands_test.cpp
+    hardware_spec_commands_test.cpp
 )
 
 target_link_libraries(coupecad_commands_test
