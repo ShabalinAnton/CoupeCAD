@@ -6,6 +6,7 @@ add_executable(coupecad_core_test
     panel_test.cpp
     cabinet_test.cpp
     project_test.cpp
+    geometry_test.cpp
 )
 
 target_link_libraries(coupecad_core_test
