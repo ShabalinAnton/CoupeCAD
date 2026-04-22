@@ -3,6 +3,7 @@ find_package(fmt REQUIRED)
 
 add_library(coupecad_core STATIC
     id.cpp
+    material.cpp
 )
 
 target_include_directories(coupecad_core
@@ -14,7 +15,6 @@ target_link_libraries(coupecad_core
         coupecad_logging
         fmt::fmt
         stduuid::stduuid
-    PRIVATE
 )
 
 target_compile_features(coupecad_core PUBLIC cxx_std_20)

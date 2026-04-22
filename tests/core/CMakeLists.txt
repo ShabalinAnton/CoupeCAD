@@ -1,6 +1,7 @@
 add_executable(coupecad_core_test
     units_test.cpp
     id_test.cpp
+    material_test.cpp
 )
 
 target_link_libraries(coupecad_core_test
