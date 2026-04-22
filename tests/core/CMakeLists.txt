@@ -3,6 +3,7 @@ add_executable(coupecad_core_test
     id_test.cpp
     material_test.cpp
     hardware_test.cpp
+    panel_test.cpp
 )
 
 target_link_libraries(coupecad_core_test
