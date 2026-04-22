@@ -11,6 +11,7 @@ add_library(coupecad_core STATIC
     geometry.cpp
     commands/change_set.cpp
     commands/cabinet_commands.cpp
+    commands/panel_commands.cpp
 )
 
 target_include_directories(coupecad_core

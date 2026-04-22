@@ -1,6 +1,7 @@
 add_executable(coupecad_commands_test
     command_interface_test.cpp
     cabinet_commands_test.cpp
+    panel_commands_test.cpp
 )
 
 target_link_libraries(coupecad_commands_test
