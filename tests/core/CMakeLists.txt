@@ -23,3 +23,4 @@ include(GoogleTest)
 gtest_discover_tests(coupecad_core_test)
 
 add_subdirectory(commands)
+add_subdirectory(io)

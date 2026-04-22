@@ -39,4 +39,12 @@ public:
     using CoupecadException::CoupecadException;
 };
 
+// Конкретные ошибки формата `.ccad`. Все наследуют FileFormatError.
+class CorruptedArchive     : public FileFormatError { using FileFormatError::FileFormatError; };
+class MissingManifest      : public FileFormatError { using FileFormatError::FileFormatError; };
+class ChecksumMismatch     : public FileFormatError { using FileFormatError::FileFormatError; };
+class UnsupportedVersion   : public FileFormatError { using FileFormatError::FileFormatError; };
+class UnsupportedEncoding  : public FileFormatError { using FileFormatError::FileFormatError; };
+class InvalidData          : public FileFormatError { using FileFormatError::FileFormatError; };
+
 }  // namespace coupecad::core

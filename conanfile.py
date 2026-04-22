@@ -15,6 +15,8 @@ class CoupeCADConan(ConanFile):
         self.requires("spdlog/1.13.0")
         self.requires("fmt/10.2.1")
         self.requires("stduuid/1.2.3")
+        self.requires("nlohmann_json/3.11.3")
+        self.requires("libzip/1.10.1")
         self.test_requires("gtest/1.14.0")
 
     def layout(self):
