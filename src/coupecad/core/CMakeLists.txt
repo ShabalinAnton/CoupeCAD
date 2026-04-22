@@ -19,6 +19,7 @@ add_library(coupecad_core STATIC
     commands/macro_command.cpp
     undo_stack.cpp
     io/json_project_serializer.cpp
+    io/schema_migration.cpp
 )
 
 target_include_directories(coupecad_core
