@@ -1,7 +1,10 @@
 #pragma once
 
+#include "coupecad/core/hardware.h"
 #include "coupecad/core/id.h"
 #include "coupecad/core/io/project_serializer.h"
+#include "coupecad/core/material.h"
+#include "coupecad/core/panel.h"
 #include "coupecad/core/units.h"
 
 #include <nlohmann/json.hpp>
@@ -48,6 +51,34 @@ template <class Tag>
 nlohmann::json to_json_id(const Id<Tag>& id);
 template <class Tag>
 Id<Tag> from_json_id(const nlohmann::json& j);
+
+// --- Material ---
+nlohmann::json to_json_material(const Material& m);
+Material from_json_material(const nlohmann::json& j);
+
+// --- EdgeBanding ---
+nlohmann::json to_json_edge_banding(const EdgeBanding& eb);
+EdgeBanding from_json_edge_banding(const nlohmann::json& j);
+
+nlohmann::json to_json_panel_edge_banding(const PanelEdgeBanding& eb);
+PanelEdgeBanding from_json_panel_edge_banding(const nlohmann::json& j);
+
+// --- HardwareSpec ---
+nlohmann::json to_json_hardware_spec(const HardwareSpec& s);
+HardwareSpec from_json_hardware_spec(const nlohmann::json& j);
+
+// --- HardwareItem / PanelAttachment ---
+nlohmann::json to_json_panel_attachment(const PanelAttachment& a);
+PanelAttachment from_json_panel_attachment(const nlohmann::json& j);
+
+nlohmann::json to_json_hardware_item(const HardwareItem& h);
+HardwareItem from_json_hardware_item(const nlohmann::json& j);
+
+// Вспомогательные перечисления <-> строки.
+const char* material_kind_to_str(MaterialKind k);
+MaterialKind material_kind_from_str(const std::string& s);
+const char* hardware_kind_to_str(HardwareKind k);
+HardwareKind hardware_kind_from_str(const std::string& s);
 
 }  // namespace detail
 
