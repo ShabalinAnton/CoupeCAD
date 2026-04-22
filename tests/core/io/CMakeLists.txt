@@ -6,6 +6,12 @@ add_executable(coupecad_io_test
     json_project_test.cpp
     schema_migration_test.cpp
     ccad_archive_test.cpp
+    golden_test.cpp
+)
+
+target_compile_definitions(coupecad_io_test
+    PRIVATE
+        COUPECAD_TESTS_DIR="${CMAKE_SOURCE_DIR}/tests"
 )
 
 target_link_libraries(coupecad_io_test

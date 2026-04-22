@@ -1,0 +1,38 @@
+{
+  "cabinet": {
+    "default_back_thickness_mm": 4,
+    "default_panel_material": "66dce15f-b33d-4acb-9c03-62f30e95f52e",
+    "default_panel_thickness_mm": 16,
+    "dimensions_mm": {
+      "depth": 600,
+      "height": 2400,
+      "width": 2400
+    },
+    "hardware": [],
+    "id": "6af463bb-47d4-49c7-bcae-4199142ccb98",
+    "name": "Cabinet",
+    "panels": []
+  },
+  "hardware_catalog": [],
+  "materials": [
+    {
+      "color_hint": [
+        220,
+        220,
+        220,
+        255
+      ],
+      "default_thickness_mm": 16,
+      "id": "66dce15f-b33d-4acb-9c03-62f30e95f52e",
+      "kind": "ChipboardLaminated",
+      "name": "Default ChipboardLaminated 16mm",
+      "price_per_sqm": null,
+      "texture_ref": null
+    }
+  ],
+  "meta": {
+    "description": "",
+    "name": "Golden"
+  },
+  "schema_version": 1
+}
