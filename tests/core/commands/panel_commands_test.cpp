@@ -87,3 +87,135 @@ TEST(RemovePanel, BlockedByHardwareReference) {
     RemovePanel rm{pid};
     EXPECT_THROW(rm.apply(p), DomainError);
 }
+
+TEST(UpdatePanelRoleParams, ApplyRevert) {
+    auto p = make_project();
+    AddPanel add{PanelRole::Shelf,
+                  ShelfParams{.height_from_bottom = Millimeters{800},
+                               .extent = ShelfFullWidth{}}};
+    add.apply(p);
+    auto pid = add.assigned_id();
+
+    UpdatePanelRoleParams upd{pid,
+                               ShelfParams{.height_from_bottom = Millimeters{1000},
+                                            .extent = ShelfFullWidth{}}};
+    upd.apply(p);
+    auto& sp = std::get<ShelfParams>(p.cabinet().panels.at(pid).role_params);
+    EXPECT_EQ(sp.height_from_bottom, Millimeters{1000});
+
+    upd.revert(p);
+    auto& sp2 = std::get<ShelfParams>(p.cabinet().panels.at(pid).role_params);
+    EXPECT_EQ(sp2.height_from_bottom, Millimeters{800});
+}
+
+TEST(UpdatePanelRoleParams, WrongVariantThrows) {
+    auto p = make_project();
+    AddPanel add{PanelRole::Top, NoRoleParams{}};
+    add.apply(p);
+    UpdatePanelRoleParams upd{add.assigned_id(), ShelfParams{}};
+    EXPECT_THROW(upd.apply(p), DomainError);
+}
+
+TEST(UpdatePanelRoleParams, PreviewUpdateLive) {
+    auto p = make_project();
+    AddPanel add{PanelRole::Shelf,
+                  ShelfParams{.height_from_bottom = Millimeters{800},
+                               .extent = ShelfFullWidth{}}};
+    add.apply(p);
+    auto pid = add.assigned_id();
+    UpdatePanelRoleParams upd{pid,
+                               ShelfParams{.height_from_bottom = Millimeters{900},
+                                            .extent = ShelfFullWidth{}}};
+    upd.apply(p);
+    upd.update(p, std::any{RoleParams{ShelfParams{.height_from_bottom = Millimeters{950},
+                                                   .extent = ShelfFullWidth{}}}});
+    auto& sp = std::get<ShelfParams>(p.cabinet().panels.at(pid).role_params);
+    EXPECT_EQ(sp.height_from_bottom, Millimeters{950});
+    upd.revert(p);
+    auto& sp2 = std::get<ShelfParams>(p.cabinet().panels.at(pid).role_params);
+    EXPECT_EQ(sp2.height_from_bottom, Millimeters{800});
+}
+
+TEST(SetPanelMaterial, ApplyRevert) {
+    auto p = make_project();
+    AddPanel add{PanelRole::Top, NoRoleParams{}};
+    add.apply(p);
+    auto pid = add.assigned_id();
+    auto mat_id = p.uuid_gen().next_id<MaterialIdTag>();
+    p.mutable_materials()[mat_id] = Material{.id = mat_id, .name = "Test",
+                                              .kind = MaterialKind::Mdf,
+                                              .default_thickness = Millimeters{18}};
+    SetPanelMaterial cmd{pid, mat_id};
+    cmd.apply(p);
+    EXPECT_EQ(p.cabinet().panels.at(pid).material_override, mat_id);
+    cmd.revert(p);
+    EXPECT_FALSE(p.cabinet().panels.at(pid).material_override.has_value());
+}
+
+TEST(SetPanelMaterial, UnknownMaterialThrows) {
+    auto p = make_project();
+    AddPanel add{PanelRole::Top, NoRoleParams{}};
+    add.apply(p);
+    SetPanelMaterial cmd{add.assigned_id(),
+                          p.uuid_gen().next_id<MaterialIdTag>()};
+    EXPECT_THROW(cmd.apply(p), DomainError);
+}
+
+TEST(SetPanelThickness, ApplyRevert) {
+    auto p = make_project();
+    AddPanel add{PanelRole::Top, NoRoleParams{}};
+    add.apply(p);
+    SetPanelThickness cmd{add.assigned_id(), Millimeters{22}};
+    cmd.apply(p);
+    EXPECT_EQ(*p.cabinet().panels.at(add.assigned_id()).thickness_override,
+              Millimeters{22});
+    cmd.revert(p);
+    EXPECT_FALSE(p.cabinet().panels.at(add.assigned_id())
+                     .thickness_override.has_value());
+}
+
+TEST(SetPanelThickness, RejectsNonPositive) {
+    EXPECT_THROW(SetPanelThickness(PanelId{}, Millimeters{0}), DomainError);
+}
+
+TEST(SetPanelEdgeBanding, ApplyRevert) {
+    auto p = make_project();
+    AddPanel add{PanelRole::Top, NoRoleParams{}};
+    add.apply(p);
+    auto pid = add.assigned_id();
+    auto mat_id = p.cabinet().default_panel_material;
+    SetPanelEdgeBanding cmd{pid, PanelSide::Front,
+                              EdgeBanding{.material_id = mat_id,
+                                           .thickness = Millimeters{2}}};
+    cmd.apply(p);
+    ASSERT_TRUE(p.cabinet().panels.at(pid).edge_banding.front.has_value());
+    EXPECT_EQ(p.cabinet().panels.at(pid).edge_banding.front->thickness,
+              Millimeters{2});
+    cmd.revert(p);
+    EXPECT_FALSE(p.cabinet().panels.at(pid).edge_banding.front.has_value());
+}
+
+TEST(SetPanelLabel, ApplyRevert) {
+    auto p = make_project();
+    AddPanel add{PanelRole::Top, NoRoleParams{}};
+    add.apply(p);
+    auto pid = add.assigned_id();
+    SetPanelLabel cmd{pid, std::string{"Top panel"}};
+    cmd.apply(p);
+    EXPECT_EQ(*p.cabinet().panels.at(pid).label, "Top panel");
+    cmd.revert(p);
+    EXPECT_FALSE(p.cabinet().panels.at(pid).label.has_value());
+}
+
+TEST(SetPanelGrain, ApplyRevert) {
+    auto p = make_project();
+    AddPanel add{PanelRole::Top, NoRoleParams{}};
+    add.apply(p);
+    auto pid = add.assigned_id();
+    SetPanelGrain cmd{pid, GrainDirection::Horizontal};
+    cmd.apply(p);
+    EXPECT_EQ(p.cabinet().panels.at(pid).grain_direction,
+              GrainDirection::Horizontal);
+    cmd.revert(p);
+    EXPECT_EQ(p.cabinet().panels.at(pid).grain_direction, GrainDirection::None);
+}
