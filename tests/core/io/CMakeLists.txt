@@ -3,6 +3,7 @@ add_executable(coupecad_io_test
     json_primitives_test.cpp
     json_entities_test.cpp
     json_panel_test.cpp
+    json_project_test.cpp
 )
 
 target_link_libraries(coupecad_io_test

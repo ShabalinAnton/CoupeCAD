@@ -1,5 +1,6 @@
 #pragma once
 
+#include "coupecad/core/cabinet.h"
 #include "coupecad/core/hardware.h"
 #include "coupecad/core/id.h"
 #include "coupecad/core/io/project_serializer.h"
@@ -85,6 +86,9 @@ RoleParams from_json_role_params(const nlohmann::json& j);
 
 nlohmann::json to_json_panel(const Panel& p);
 Panel from_json_panel(const nlohmann::json& j);
+
+nlohmann::json to_json_cabinet(const Cabinet& c);
+Cabinet from_json_cabinet(const nlohmann::json& j);
 
 const char* panel_role_to_str(PanelRole r);
 PanelRole panel_role_from_str(const std::string& s);

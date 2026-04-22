@@ -1,9 +1,12 @@
 #include "coupecad/core/io/json_project_serializer.h"
 
+#include "coupecad/core/cabinet.h"
 #include "coupecad/core/errors.h"
 #include "coupecad/core/id.h"
 #include "coupecad/core/project.h"
 #include "coupecad/core/units.h"
+
+#include <algorithm>
 
 namespace coupecad::core {
 
@@ -546,17 +549,139 @@ Panel from_json_panel(const nlohmann::json& j) {
     return p;
 }
 
-}  // namespace detail
+nlohmann::json to_json_cabinet(const Cabinet& c) {
+    // Детерминированно: сортируем панели и hardware по id (to_string).
+    std::vector<std::pair<std::string, const Panel*>> sorted_panels;
+    sorted_panels.reserve(c.panels.size());
+    for (const auto& [id, p] : c.panels) {
+        sorted_panels.emplace_back(id.to_string(), &p);
+    }
+    std::sort(sorted_panels.begin(), sorted_panels.end(),
+              [](const auto& a, const auto& b) { return a.first < b.first; });
+    nlohmann::json panels = nlohmann::json::array();
+    for (const auto& [_, p] : sorted_panels) panels.push_back(to_json_panel(*p));
 
-// Заглушки для будущих Tasks 3-5.
-std::vector<std::uint8_t> JsonProjectSerializer::serialize(const Project&) const {
-    throw InvalidData{"json.not_implemented_yet",
-                      "JsonProjectSerializer::serialize pending Task 5"};
+    std::vector<std::pair<std::string, const HardwareItem*>> sorted_hw;
+    sorted_hw.reserve(c.hardware.size());
+    for (const auto& [id, h] : c.hardware) {
+        sorted_hw.emplace_back(id.to_string(), &h);
+    }
+    std::sort(sorted_hw.begin(), sorted_hw.end(),
+              [](const auto& a, const auto& b) { return a.first < b.first; });
+    nlohmann::json hw = nlohmann::json::array();
+    for (const auto& [_, h] : sorted_hw) hw.push_back(to_json_hardware_item(*h));
+
+    return nlohmann::json{
+        {"id", to_json_id(c.id)},
+        {"name", c.name},
+        {"dimensions_mm", to_json_dimensions(c.dimensions)},
+        {"default_panel_material", to_json_id(c.default_panel_material)},
+        {"default_panel_thickness_mm", c.default_panel_thickness.value()},
+        {"default_back_thickness_mm", c.default_back_thickness.value()},
+        {"panels", panels},
+        {"hardware", hw},
+    };
 }
 
-Project JsonProjectSerializer::deserialize(const std::vector<std::uint8_t>&) const {
-    throw InvalidData{"json.not_implemented_yet",
-                      "JsonProjectSerializer::deserialize pending Task 5"};
+Cabinet from_json_cabinet(const nlohmann::json& j) {
+    Cabinet c;
+    c.id = from_json_id<CabinetIdTag>(j.at("id"));
+    c.name = j.at("name").get<std::string>();
+    c.dimensions = from_json_dimensions(j.at("dimensions_mm"));
+    c.default_panel_material = from_json_id<MaterialIdTag>(j.at("default_panel_material"));
+    c.default_panel_thickness = from_json_millimeters(j.at("default_panel_thickness_mm"));
+    c.default_back_thickness = from_json_millimeters(j.at("default_back_thickness_mm"));
+    for (const auto& pj : j.at("panels")) {
+        Panel p = from_json_panel(pj);
+        auto pid = p.id;
+        c.panels.emplace(pid, std::move(p));
+    }
+    for (const auto& hj : j.at("hardware")) {
+        HardwareItem h = from_json_hardware_item(hj);
+        auto hid = h.id;
+        c.hardware.emplace(hid, std::move(h));
+    }
+    return c;
+}
+
+}  // namespace detail
+
+namespace {
+constexpr int kCurrentSchemaVersion = 1;
+}
+
+std::vector<std::uint8_t> JsonProjectSerializer::serialize(const Project& project) const {
+    using namespace detail;
+    nlohmann::json root;
+    root["schema_version"] = kCurrentSchemaVersion;
+    root["meta"] = nlohmann::json{
+        {"name", project.meta().name},
+        {"description", project.meta().description},
+    };
+    root["cabinet"] = to_json_cabinet(project.cabinet());
+
+    // Materials — отсортированный массив по id.
+    std::vector<std::pair<std::string, const Material*>> sorted_mats;
+    for (const auto& [id, m] : project.materials()) sorted_mats.emplace_back(id.to_string(), &m);
+    std::sort(sorted_mats.begin(), sorted_mats.end(),
+              [](const auto& a, const auto& b) { return a.first < b.first; });
+    nlohmann::json mats = nlohmann::json::array();
+    for (const auto& [_, m] : sorted_mats) mats.push_back(to_json_material(*m));
+    root["materials"] = mats;
+
+    // HardwareSpec — отсортированный по ref.
+    std::vector<std::pair<std::string, const HardwareSpec*>> sorted_specs;
+    for (const auto& [ref, s] : project.hardware_catalog()) sorted_specs.emplace_back(ref.value(), &s);
+    std::sort(sorted_specs.begin(), sorted_specs.end(),
+              [](const auto& a, const auto& b) { return a.first < b.first; });
+    nlohmann::json specs = nlohmann::json::array();
+    for (const auto& [_, s] : sorted_specs) specs.push_back(to_json_hardware_spec(*s));
+    root["hardware_catalog"] = specs;
+
+    std::string s = root.dump(2);   // отступ 2 пробела
+    return std::vector<std::uint8_t>(s.begin(), s.end());
+}
+
+Project JsonProjectSerializer::deserialize(const std::vector<std::uint8_t>& bytes) const {
+    using namespace detail;
+    nlohmann::json root;
+    try {
+        root = nlohmann::json::parse(bytes.begin(), bytes.end());
+    } catch (const nlohmann::json::parse_error& e) {
+        throw InvalidData{"json.parse_failed", e.what()};
+    }
+
+    if (!root.is_object() || !root.contains("schema_version")) {
+        throw InvalidData{"json.missing_schema_version",
+                          "project.json missing schema_version"};
+    }
+    int sv = root.at("schema_version").get<int>();
+    if (sv != kCurrentSchemaVersion) {
+        throw UnsupportedVersion{"json.wrong_schema_after_migration",
+                                  "Expected current schema after migration, got " + std::to_string(sv)};
+    }
+
+    Project p = Project::create_empty(root.at("meta").at("name").get<std::string>(),
+                                        make_random_uuid_generator());
+    p.mutable_meta().description = root.at("meta").at("description").get<std::string>();
+
+    // Сначала materials, чтобы Cabinet.default_panel_material мог ссылаться.
+    p.mutable_materials().clear();
+    for (const auto& mj : root.at("materials")) {
+        Material m = from_json_material(mj);
+        p.mutable_materials().emplace(m.id, m);
+    }
+
+    p.mutable_hardware_catalog().clear();
+    for (const auto& sj : root.at("hardware_catalog")) {
+        HardwareSpec s = from_json_hardware_spec(sj);
+        p.mutable_hardware_catalog().emplace(s.ref, s);
+    }
+
+    p.mutable_cabinet() = from_json_cabinet(root.at("cabinet"));
+
+    p.validate();
+    return p;
 }
 
 }  // namespace coupecad::core
