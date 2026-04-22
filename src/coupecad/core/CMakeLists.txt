@@ -4,6 +4,7 @@ find_package(fmt REQUIRED)
 add_library(coupecad_core STATIC
     id.cpp
     material.cpp
+    hardware.cpp
 )
 
 target_include_directories(coupecad_core
