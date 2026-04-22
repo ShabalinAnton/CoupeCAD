@@ -80,6 +80,21 @@ MaterialKind material_kind_from_str(const std::string& s);
 const char* hardware_kind_to_str(HardwareKind k);
 HardwareKind hardware_kind_from_str(const std::string& s);
 
+nlohmann::json to_json_role_params(const RoleParams& rp);
+RoleParams from_json_role_params(const nlohmann::json& j);
+
+nlohmann::json to_json_panel(const Panel& p);
+Panel from_json_panel(const nlohmann::json& j);
+
+const char* panel_role_to_str(PanelRole r);
+PanelRole panel_role_from_str(const std::string& s);
+
+const char* grain_direction_to_str(GrainDirection g);
+GrainDirection grain_direction_from_str(const std::string& s);
+
+const char* hinge_side_to_str(HingeSide h);
+HingeSide hinge_side_from_str(const std::string& s);
+
 }  // namespace detail
 
 }  // namespace coupecad::core

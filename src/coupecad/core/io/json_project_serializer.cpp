@@ -279,6 +279,273 @@ HardwareItem from_json_hardware_item(const nlohmann::json& j) {
     return h;
 }
 
+const char* panel_role_to_str(PanelRole r) { return panel_role_name(r); }
+
+PanelRole panel_role_from_str(const std::string& s) {
+    static const std::pair<const char*, PanelRole> table[] = {
+        {"Top", PanelRole::Top}, {"Bottom", PanelRole::Bottom},
+        {"SideLeft", PanelRole::SideLeft}, {"SideRight", PanelRole::SideRight},
+        {"Back", PanelRole::Back}, {"Shelf", PanelRole::Shelf},
+        {"DividerVertical", PanelRole::DividerVertical},
+        {"DividerHorizontal", PanelRole::DividerHorizontal},
+        {"Facade", PanelRole::Facade}, {"DrawerBottom", PanelRole::DrawerBottom},
+        {"DrawerFront", PanelRole::DrawerFront},
+        {"DrawerSide", PanelRole::DrawerSide},
+        {"DrawerBack", PanelRole::DrawerBack},
+        {"Plinth", PanelRole::Plinth}, {"Custom", PanelRole::Custom},
+    };
+    for (const auto& [n, r] : table) if (s == n) return r;
+    throw InvalidData{"json.panel_role_unknown", "Unknown PanelRole: " + s};
+}
+
+const char* grain_direction_to_str(GrainDirection g) { return grain_direction_name(g); }
+
+GrainDirection grain_direction_from_str(const std::string& s) {
+    if (s == "Horizontal") return GrainDirection::Horizontal;
+    if (s == "Vertical")   return GrainDirection::Vertical;
+    if (s == "None")       return GrainDirection::None;
+    throw InvalidData{"json.grain_unknown", "Unknown GrainDirection: " + s};
+}
+
+const char* hinge_side_to_str(HingeSide h) { return hinge_side_name(h); }
+
+HingeSide hinge_side_from_str(const std::string& s) {
+    if (s == "Left")   return HingeSide::Left;
+    if (s == "Right")  return HingeSide::Right;
+    if (s == "Top")    return HingeSide::Top;
+    if (s == "Bottom") return HingeSide::Bottom;
+    if (s == "None")   return HingeSide::None;
+    throw InvalidData{"json.hinge_side_unknown", "Unknown HingeSide: " + s};
+}
+
+// RoleParams сериализуется как объект с kind-discriminator.
+nlohmann::json to_json_role_params(const RoleParams& rp) {
+    return std::visit([](const auto& p) -> nlohmann::json {
+        using T = std::decay_t<decltype(p)>;
+        if constexpr (std::is_same_v<T, NoRoleParams>) {
+            return nlohmann::json{{"kind", "None"}};
+        } else if constexpr (std::is_same_v<T, ShelfParams>) {
+            nlohmann::json ext;
+            if (std::holds_alternative<ShelfFullWidth>(p.extent)) {
+                ext = nlohmann::json{{"kind", "FullWidth"}};
+            } else {
+                const auto& bd = std::get<ShelfBetweenDividers>(p.extent);
+                ext = nlohmann::json{{"kind", "BetweenDividers"},
+                                      {"from", to_json_id(bd.from)},
+                                      {"to", to_json_id(bd.to)}};
+            }
+            return nlohmann::json{
+                {"kind", "Shelf"},
+                {"height_from_bottom_mm", p.height_from_bottom.value()},
+                {"extent", ext},
+            };
+        } else if constexpr (std::is_same_v<T, DividerVerticalParams>) {
+            nlohmann::json ext;
+            if (std::holds_alternative<VerticalExtentFull>(p.height_extent)) {
+                ext = nlohmann::json{{"kind", "Full"}};
+            } else {
+                const auto& r = std::get<VerticalExtentRange>(p.height_extent);
+                ext = nlohmann::json{{"kind", "Range"},
+                                      {"from_z_mm", r.from_z.value()},
+                                      {"to_z_mm", r.to_z.value()}};
+            }
+            return nlohmann::json{
+                {"kind", "DividerVertical"},
+                {"offset_from_left_mm", p.offset_from_left.value()},
+                {"height_extent", ext},
+            };
+        } else if constexpr (std::is_same_v<T, DividerHorizontalParams>) {
+            nlohmann::json ext;
+            if (std::holds_alternative<DepthExtentFull>(p.depth_extent)) {
+                ext = nlohmann::json{{"kind", "Full"}};
+            } else {
+                const auto& r = std::get<DepthExtentRange>(p.depth_extent);
+                ext = nlohmann::json{{"kind", "Range"},
+                                      {"from_y_mm", r.from_y.value()},
+                                      {"to_y_mm", r.to_y.value()}};
+            }
+            return nlohmann::json{
+                {"kind", "DividerHorizontal"},
+                {"offset_from_bottom_mm", p.offset_from_bottom.value()},
+                {"depth_extent", ext},
+            };
+        } else if constexpr (std::is_same_v<T, FacadeParams>) {
+            nlohmann::json ext;
+            if (std::holds_alternative<FacadeFullFront>(p.extent)) {
+                ext = nlohmann::json{{"kind", "FullFront"}};
+            } else {
+                const auto& r = std::get<FacadeRect>(p.extent);
+                ext = nlohmann::json{{"kind", "Rect"},
+                                      {"from_x_mm", r.from_x.value()},
+                                      {"to_x_mm", r.to_x.value()},
+                                      {"from_z_mm", r.from_z.value()},
+                                      {"to_z_mm", r.to_z.value()}};
+            }
+            return nlohmann::json{
+                {"kind", "Facade"},
+                {"extent", ext},
+                {"hinge_side", hinge_side_to_str(p.hinge_side)},
+            };
+        } else if constexpr (std::is_same_v<T, DrawerBottomParams>) {
+            return nlohmann::json{{"kind", "DrawerBottom"},
+                                   {"height_from_bottom_mm", p.height_from_bottom.value()},
+                                   {"depth_mm", p.depth.value()}};
+        } else if constexpr (std::is_same_v<T, DrawerFrontParams>) {
+            return nlohmann::json{{"kind", "DrawerFront"},
+                                   {"height_from_bottom_mm", p.height_from_bottom.value()},
+                                   {"height_mm", p.height.value()}};
+        } else if constexpr (std::is_same_v<T, DrawerSideParams>) {
+            return nlohmann::json{{"kind", "DrawerSide"},
+                                   {"height_from_bottom_mm", p.height_from_bottom.value()},
+                                   {"height_mm", p.height.value()},
+                                   {"depth_mm", p.depth.value()},
+                                   {"side", p.side == DrawerSideParams::Side::Left ? "Left" : "Right"}};
+        } else if constexpr (std::is_same_v<T, DrawerBackParams>) {
+            return nlohmann::json{{"kind", "DrawerBack"},
+                                   {"height_from_bottom_mm", p.height_from_bottom.value()},
+                                   {"height_mm", p.height.value()}};
+        } else if constexpr (std::is_same_v<T, PlinthParams>) {
+            return nlohmann::json{{"kind", "Plinth"},
+                                   {"height_mm", p.height.value()},
+                                   {"setback_mm", p.setback.value()}};
+        } else if constexpr (std::is_same_v<T, CustomParams>) {
+            return nlohmann::json{{"kind", "Custom"},
+                                   {"position_mm", to_json_vec3(p.position)},
+                                   {"size_mm", to_json_vec3(p.size)},
+                                   {"orientation", to_json_quat(p.orientation)}};
+        }
+    }, rp);
+}
+
+RoleParams from_json_role_params(const nlohmann::json& j) {
+    std::string kind = j.at("kind").get<std::string>();
+    if (kind == "None")              return NoRoleParams{};
+    if (kind == "Shelf") {
+        ShelfParams sp;
+        sp.height_from_bottom = from_json_millimeters(j.at("height_from_bottom_mm"));
+        const auto& ext = j.at("extent");
+        std::string ekind = ext.at("kind").get<std::string>();
+        if (ekind == "FullWidth")       sp.extent = ShelfFullWidth{};
+        else if (ekind == "BetweenDividers") {
+            sp.extent = ShelfBetweenDividers{
+                .from = from_json_id<PanelIdTag>(ext.at("from")),
+                .to = from_json_id<PanelIdTag>(ext.at("to")),
+            };
+        } else throw InvalidData{"json.shelf_extent_unknown", ekind};
+        return sp;
+    }
+    if (kind == "DividerVertical") {
+        DividerVerticalParams dp;
+        dp.offset_from_left = from_json_millimeters(j.at("offset_from_left_mm"));
+        const auto& ext = j.at("height_extent");
+        std::string ekind = ext.at("kind").get<std::string>();
+        if (ekind == "Full") dp.height_extent = VerticalExtentFull{};
+        else if (ekind == "Range") {
+            dp.height_extent = VerticalExtentRange{
+                .from_z = from_json_millimeters(ext.at("from_z_mm")),
+                .to_z = from_json_millimeters(ext.at("to_z_mm"))};
+        } else throw InvalidData{"json.vext_unknown", ekind};
+        return dp;
+    }
+    if (kind == "DividerHorizontal") {
+        DividerHorizontalParams dp;
+        dp.offset_from_bottom = from_json_millimeters(j.at("offset_from_bottom_mm"));
+        const auto& ext = j.at("depth_extent");
+        std::string ekind = ext.at("kind").get<std::string>();
+        if (ekind == "Full") dp.depth_extent = DepthExtentFull{};
+        else if (ekind == "Range") {
+            dp.depth_extent = DepthExtentRange{
+                .from_y = from_json_millimeters(ext.at("from_y_mm")),
+                .to_y = from_json_millimeters(ext.at("to_y_mm"))};
+        } else throw InvalidData{"json.dext_unknown", ekind};
+        return dp;
+    }
+    if (kind == "Facade") {
+        FacadeParams fp;
+        const auto& ext = j.at("extent");
+        std::string ekind = ext.at("kind").get<std::string>();
+        if (ekind == "FullFront") fp.extent = FacadeFullFront{};
+        else if (ekind == "Rect") {
+            fp.extent = FacadeRect{
+                .from_x = from_json_millimeters(ext.at("from_x_mm")),
+                .to_x = from_json_millimeters(ext.at("to_x_mm")),
+                .from_z = from_json_millimeters(ext.at("from_z_mm")),
+                .to_z = from_json_millimeters(ext.at("to_z_mm"))};
+        } else throw InvalidData{"json.facade_extent_unknown", ekind};
+        fp.hinge_side = hinge_side_from_str(j.at("hinge_side").get<std::string>());
+        return fp;
+    }
+    if (kind == "DrawerBottom") {
+        return DrawerBottomParams{
+            .height_from_bottom = from_json_millimeters(j.at("height_from_bottom_mm")),
+            .depth = from_json_millimeters(j.at("depth_mm"))};
+    }
+    if (kind == "DrawerFront") {
+        return DrawerFrontParams{
+            .height_from_bottom = from_json_millimeters(j.at("height_from_bottom_mm")),
+            .height = from_json_millimeters(j.at("height_mm"))};
+    }
+    if (kind == "DrawerSide") {
+        DrawerSideParams p;
+        p.height_from_bottom = from_json_millimeters(j.at("height_from_bottom_mm"));
+        p.height = from_json_millimeters(j.at("height_mm"));
+        p.depth = from_json_millimeters(j.at("depth_mm"));
+        std::string side = j.at("side").get<std::string>();
+        if (side == "Left") p.side = DrawerSideParams::Side::Left;
+        else if (side == "Right") p.side = DrawerSideParams::Side::Right;
+        else throw InvalidData{"json.drawer_side_unknown", side};
+        return p;
+    }
+    if (kind == "DrawerBack") {
+        return DrawerBackParams{
+            .height_from_bottom = from_json_millimeters(j.at("height_from_bottom_mm")),
+            .height = from_json_millimeters(j.at("height_mm"))};
+    }
+    if (kind == "Plinth") {
+        return PlinthParams{
+            .height = from_json_millimeters(j.at("height_mm")),
+            .setback = from_json_millimeters(j.at("setback_mm"))};
+    }
+    if (kind == "Custom") {
+        return CustomParams{
+            .position = from_json_vec3(j.at("position_mm")),
+            .size = from_json_vec3(j.at("size_mm")),
+            .orientation = from_json_quat(j.at("orientation"))};
+    }
+    throw InvalidData{"json.role_params_unknown_kind", "Unknown RoleParams kind: " + kind};
+}
+
+nlohmann::json to_json_panel(const Panel& p) {
+    nlohmann::json j;
+    j["id"] = to_json_id(p.id);
+    j["role"] = panel_role_to_str(p.role);
+    j["role_params"] = to_json_role_params(p.role_params);
+    j["material_override"] = p.material_override ? to_json_id(*p.material_override) : nlohmann::json(nullptr);
+    j["thickness_override_mm"] = p.thickness_override ? nlohmann::json(p.thickness_override->value())
+                                                      : nlohmann::json(nullptr);
+    j["edge_banding"] = to_json_panel_edge_banding(p.edge_banding);
+    j["grain_direction"] = grain_direction_to_str(p.grain_direction);
+    j["label"] = p.label ? nlohmann::json(*p.label) : nlohmann::json(nullptr);
+    return j;
+}
+
+Panel from_json_panel(const nlohmann::json& j) {
+    Panel p;
+    p.id = from_json_id<PanelIdTag>(j.at("id"));
+    p.role = panel_role_from_str(j.at("role").get<std::string>());
+    p.role_params = from_json_role_params(j.at("role_params"));
+    if (!j.at("material_override").is_null()) {
+        p.material_override = from_json_id<MaterialIdTag>(j.at("material_override"));
+    }
+    if (!j.at("thickness_override_mm").is_null()) {
+        p.thickness_override = from_json_millimeters(j.at("thickness_override_mm"));
+    }
+    p.edge_banding = from_json_panel_edge_banding(j.at("edge_banding"));
+    p.grain_direction = grain_direction_from_str(j.at("grain_direction").get<std::string>());
+    if (!j.at("label").is_null()) p.label = j.at("label").get<std::string>();
+    return p;
+}
+
 }  // namespace detail
 
 // Заглушки для будущих Tasks 3-5.
