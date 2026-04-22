@@ -7,6 +7,7 @@ add_executable(coupecad_core_test
     cabinet_test.cpp
     project_test.cpp
     geometry_test.cpp
+    undo_stack_test.cpp
 )
 
 target_link_libraries(coupecad_core_test

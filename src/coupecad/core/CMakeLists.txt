@@ -16,6 +16,7 @@ add_library(coupecad_core STATIC
     commands/hardware_commands.cpp
     commands/hardware_spec_commands.cpp
     commands/macro_command.cpp
+    undo_stack.cpp
 )
 
 target_include_directories(coupecad_core
