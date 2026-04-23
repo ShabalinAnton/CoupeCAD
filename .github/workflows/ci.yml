@@ -10,7 +10,7 @@ jobs:
   build-linux:
     name: Linux (Ubuntu 22.04, GCC, Qt 6.7.3)
     runs-on: ubuntu-22.04
-    timeout-minutes: 60
+    timeout-minutes: 120
 
     steps:
       - name: Checkout
@@ -75,7 +75,7 @@ jobs:
   # build-macos:
   #   name: macOS (macos-13, AppleClang, Qt 6.7.3)
   #   runs-on: macos-13
-  #   timeout-minutes: 60
+  #   timeout-minutes: 120
   #
   #   steps:
   #     - name: Checkout
@@ -130,7 +130,7 @@ jobs:
   build-windows:
     name: Windows (windows-2022, MSVC 2022, Qt 6.7.3)
     runs-on: windows-2022
-    timeout-minutes: 60
+    timeout-minutes: 120
 
     steps:
       - name: Checkout
