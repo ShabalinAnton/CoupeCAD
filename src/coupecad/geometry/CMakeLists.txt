@@ -4,6 +4,7 @@ add_library(coupecad_geometry STATIC
     occt_helpers.cpp
     panel_shape.cpp
     hardware_shape.cpp
+    cabinet_shape.cpp
 )
 
 target_include_directories(coupecad_geometry
