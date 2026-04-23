@@ -18,7 +18,7 @@ Stage 2 добавляет **геометрический слой** повер�
 - Библиотека `coupecad_geometry` — отдельная статическая библиотека, зависит от `coupecad_core` и `OpenCASCADE`.
 - **Панели как боксы** (`BRepPrimAPI_MakeBox`) — все 15 ролей панелей через `compute_panel_geometry` Stage 1a.
 - **Корпус шкафа как `TopoDS_Compound`** — объединение всех панельных боксов в единое тело.
-- **Фурнитура как bbox-солиды** — крепёж, петли и т.п. представляются прямоугольными параллелепипедами по `HardwareSpec.dimensions` в позиции `HardwareItem.position`.
+- **Фурнитура как bbox-солиды** — крепёж, петли и т.п. представляются прямоугольными параллелепипедами по `HardwareSpec.bbox`. Каждый `HardwareItem` имеет один или несколько `PanelAttachment` (привязка к панели в panel-local СК) — для каждого attachment строится свой solid в мировой СК шкафа через композицию panel-transform × attachment-transform.
 - **Stateful builder с per-panel кешем** и инвалидацией по `ChangeSet`.
 - **Pull-модель** доставки изменений: внешний код (Stage 4 UI) явно вызывает `apply_changes(cs)`.
 - **OCCT в PUBLIC API**: `TopoDS_Shape`, `TopoDS_Solid`, `TopoDS_Compound` видны консьюмерам.
@@ -180,8 +180,12 @@ public:
     // несовместимы с cabinet).
     const TopoDS_Solid& panel_solid(const core::PanelId& id);
 
-    // Аналогично для фурнитуры.
-    const TopoDS_Solid& hardware_solid(const core::HardwareItemId& id);
+    // Геометрия фурнитуры: один TopoDS_Compound на HardwareItem.
+    // Compound содержит по одному TopoDS_Solid на каждый PanelAttachment
+    // (фурнитура может быть привязана к нескольким панелям сразу — например,
+    // петля к двери и боковине). Позиция каждого solid'а — в мировой СК
+    // шкафа, через композицию panel transform × attachment transform.
+    const TopoDS_Compound& hardware_compound(const core::HardwareItemId& id);
 
     // Compound всего шкафа: панели + фурнитура. Пересобирается лениво,
     // если хоть один компонент инвалидирован.
@@ -194,7 +198,7 @@ public:
 private:
     const core::Project& project_;
     std::unordered_map<core::PanelId, TopoDS_Solid> panel_cache_;
-    std::unordered_map<core::HardwareItemId, TopoDS_Solid> hardware_cache_;
+    std::unordered_map<core::HardwareItemId, TopoDS_Compound> hardware_cache_;
     TopoDS_Compound cabinet_compound_;
     bool compound_dirty_ = true;
 };
@@ -220,8 +224,10 @@ private:
 ### 5.1 Ключи кешей
 
 - `panel_cache_: unordered_map<PanelId, TopoDS_Solid>` — по одному solid на панель.
-- `hardware_cache_: unordered_map<HardwareItemId, TopoDS_Solid>` — по одному solid на элемент фурнитуры.
-- `cabinet_compound_: TopoDS_Compound` — общий compound, плюс булев флаг `compound_dirty_`.
+- `hardware_cache_: unordered_map<HardwareItemId, TopoDS_Compound>` — compound на каждый HardwareItem (внутри по одному solid'у на каждый PanelAttachment).
+- `cabinet_compound_: TopoDS_Compound` — общий compound шкафа, плюс булев флаг `compound_dirty_`.
+
+> **Замечание про hardware-инвалидацию:** так как hardware-attachments позиционируются относительно панели, изменение **панели** сдвигает и привязанную к ней фурнитуру. Поэтому `apply_changes` инвалидирует hardware_cache не только по `cs.updated_hardware`, но и по любой панели в `cs.updated_panels`/`cs.removed_panels`/`cs.cabinet_changed`. Реализация — в §5.2.
 
 ### 5.2 Алгоритм `apply_changes(const ChangeSet& cs)`
 
@@ -230,17 +236,24 @@ for id in cs.removed_panels:    panel_cache_.erase(id)
 for id in cs.removed_hardware:  hardware_cache_.erase(id)
 for id in cs.updated_panels:    panel_cache_.erase(id)         # перестроится по запросу
 for id in cs.updated_hardware:  hardware_cache_.erase(id)
-for id in cs.added_panels:      <не делаем ничего, build on demand>
-for id in cs.added_hardware:    <не делаем ничего, build on demand>
 
-# Удалённые материалы влияют на цвет/текстуру (Stage 3 renderer), не на shape.
-# В Stage 2 cs.added_materials / removed_materials / updated_materials игнорируются.
+# Hardware-attachments позиционируются относительно панели. Сдвинулась
+# панель → надо пересчитать привязанную фурнитуру. Без анализа графа
+# (panel → attached items) делаем консервативно: чистим hardware_cache
+# целиком, если что-то менялось среди панелей.
+if (!cs.updated_panels.empty() || !cs.removed_panels.empty() || cs.cabinet_changed) {
+    hardware_cache_.clear();
+}
 
 if cs.cabinet_changed:
     # Изменились dimensions шкафа → role-based панели могут получить
     # другую геометрию (Bottom/Top/LeftSide/...). Без анализа разности
     # инвалидируем всё.
     panel_cache_.clear()
+
+# added_panels / added_hardware — не трогаем кеш, build on demand.
+# materials (added/removed/updated) — влияют на цвет/текстуру (Stage 3),
+# не на shape. Игнорируются.
 
 if !cs.empty():  # любая дельта влияет на компаунд
     compound_dirty_ = true
@@ -252,7 +265,7 @@ if !cs.empty():  # любая дельта влияет на компаунд
 
 ### 5.4 Lazy сборка `cabinet_compound()`
 
-Если `compound_dirty_` ⇒ заново строим `TopoDS_Compound` через `BRep_Builder::MakeCompound` + `Add(...)` для всех текущих `panel_solid(id)` и `hardware_solid(id)`. Это автоматически прогревает per-panel кеш для тех id, которых там ещё не было. Сбрасываем флаг.
+Если `compound_dirty_` ⇒ заново строим `TopoDS_Compound` через `BRep_Builder::MakeCompound` + `Add(...)` для всех текущих `panel_solid(id)` и `hardware_compound(id)` (compound добавляется как один shape). Это автоматически прогревает оба кеша для тех id, которых там ещё не было. Сбрасываем флаг.
 
 ### 5.5 Edge cases
 
@@ -285,26 +298,43 @@ TopoDS_Solid build_panel_solid(const core::Cabinet& cabinet,
 ### 6.2 Фурнитура (`hardware_shape.cpp`)
 
 ```cpp
-TopoDS_Solid build_hardware_solid(const core::Project& project,
-                                  const core::HardwareItem& item) {
-    const auto& spec = project.find_hardware_spec(item.spec);
-    if (!spec) {
-        throw core::DomainError("hardware spec not found: " + item.spec.value);
+// Возвращает compound: по одному TopoDS_Solid на каждый PanelAttachment.
+TopoDS_Compound build_hardware_compound(const core::Project& project,
+                                        const core::HardwareItem& item) {
+    auto spec_it = project.hardware_catalog().find(item.ref);
+    if (spec_it == project.hardware_catalog().end()) {
+        throw core::DomainError("hardware spec not found: " + item.ref.value);
     }
-    const auto& d = spec->dimensions;  // Dimensions{width, depth, height}
+    const core::Vec3& bbox = spec_it->second.bbox;
 
-    BRepPrimAPI_MakeBox box(gp_Pnt(0, 0, 0),
-                            static_cast<double>(d.width.value()),
-                            static_cast<double>(d.depth.value()),
-                            static_cast<double>(d.height.value()));
-    TopoDS_Solid local = box.Solid();
+    TopoDS_Compound compound;
+    BRep_Builder bb;
+    bb.MakeCompound(compound);
 
-    const gp_Trsf trsf = to_occt_transform(item.position, item.orientation);
-    return TopoDS::Solid(BRepBuilderAPI_Transform(local, trsf, /*Copy=*/false).Shape());
+    const auto dx = static_cast<double>(bbox.x.value());
+    const auto dy = static_cast<double>(bbox.y.value());
+    const auto dz = static_cast<double>(bbox.z.value());
+
+    for (const auto& att : item.attachments) {
+        // panel_id → PanelGeometry: позиция и ориентация панели в шкафу.
+        const auto& panel = project.cabinet().panels.at(att.panel_id);
+        const auto pg = core::compute_panel_geometry(project.cabinet(), panel);
+
+        // World transform = panel transform ∘ attachment transform.
+        // (att.local_position и att.orientation — в panel-local frame).
+        const gp_Trsf panel_trsf = to_occt_transform(pg.origin, pg.orientation);
+        const gp_Trsf attach_trsf = to_occt_transform(att.local_position, att.orientation);
+        const gp_Trsf world_trsf = panel_trsf.Multiplied(attach_trsf);
+
+        BRepPrimAPI_MakeBox box(gp_Pnt(0, 0, 0), dx, dy, dz);
+        TopoDS_Shape positioned = BRepBuilderAPI_Transform(box.Solid(), world_trsf, /*Copy=*/false).Shape();
+        bb.Add(compound, positioned);
+    }
+    return compound;
 }
 ```
 
-Если `HardwareItem` не имеет `orientation` (зависит от Stage 1 модели — у `HardwareItem` оно есть как `core::Quat`), используем identity.
+> Если у `HardwareItem` пустой список attachments, `Cabinet::validate()` уже бросает `DomainError` (см. `hardware.h:62`), так что эта функция вызывается только на валидных items.
 
 ### 6.3 Compound шкафа (`cabinet_shape.cpp`)
 
@@ -315,17 +345,21 @@ TopoDS_Compound build_cabinet_compound(GeometryBuilder& builder,
     BRep_Builder bb;
     bb.MakeCompound(compound);
 
-    for (const auto& panel : project.cabinet().panels()) {
-        bb.Add(compound, builder.panel_solid(panel.id));
+    // panels — unordered_map<PanelId, Panel>.
+    for (const auto& [panel_id, panel] : project.cabinet().panels) {
+        bb.Add(compound, builder.panel_solid(panel_id));
     }
-    for (const auto& hw : project.cabinet().hardware_items()) {
-        bb.Add(compound, builder.hardware_solid(hw.id));
+    // hardware — unordered_map<HardwareItemId, HardwareItem>.
+    for (const auto& [hw_id, hw] : project.cabinet().hardware) {
+        bb.Add(compound, builder.hardware_compound(hw_id));
     }
     return compound;
 }
 ```
 
 Метод `cabinet_compound()` Builder'а вызывает эту функцию (с `*this`), кеширует результат.
+
+**Замечание про порядок**: `unordered_map` не гарантирует стабильный порядок итерации между запусками. Для compound'а это не критично (mathematical equivalence), но если в будущем понадобится детерминированный shape (например, для регрессионных тестов через хеш) — отсортировать ключи.
 
 ---
 
@@ -433,7 +467,7 @@ EXPECT_NEAR(xmin, expected_origin.x, 1e-6);
 2. **Время сборки OCCT в CI** — см. §7.2. Если первый CI-run превысит 90 мин и prebuilt'ов нет — даунгрейд до 7.6.2 либо переход на system-OCCT (по аналогии с Qt-сагой).
 3. **Точный набор `TKxxx` таргетов для линковки** — может варьироваться по версиям OCCT. Trial-build покажет.
 4. **Поддержка Custom-панелей с не-identity orientation** — реализуется сразу, но в реальности использоваться начнёт только в Stage 5+ (UI редактирования произвольных панелей). Тест для одной случайной ориентации обязателен.
-5. **Hardware orientation** — нужно проверить, есть ли в `core::HardwareItem` поле `orientation: Quat` (по Stage 1 спецификации — должно быть). Если нет — добавляется в Stage 2 как мини-расширение модели.
+5. ~~**Hardware orientation**~~ — проверено: `HardwareItem` имеет `attachments: vector<PanelAttachment>`, каждый attachment несёт свои `local_position` и `orientation`. Размещение фурнитуры — относительно панели, не свободное.
 
 ---
 
