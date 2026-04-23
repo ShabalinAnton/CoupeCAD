@@ -2,6 +2,7 @@ find_package(OpenCASCADE REQUIRED)
 
 add_library(coupecad_geometry STATIC
     occt_helpers.cpp
+    panel_shape.cpp
 )
 
 target_include_directories(coupecad_geometry
