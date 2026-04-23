@@ -5,6 +5,7 @@ add_library(coupecad_geometry STATIC
     panel_shape.cpp
     hardware_shape.cpp
     cabinet_shape.cpp
+    geometry_builder.cpp
 )
 
 target_include_directories(coupecad_geometry

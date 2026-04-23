@@ -3,6 +3,7 @@ add_executable(coupecad_geometry_test
     panel_shape_test.cpp
     hardware_shape_test.cpp
     cabinet_shape_test.cpp
+    geometry_builder_test.cpp
 )
 
 target_link_libraries(coupecad_geometry_test
