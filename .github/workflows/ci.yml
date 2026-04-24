@@ -52,7 +52,11 @@ jobs:
           cache: true
 
       - name: Conan install
-        run: conan install . --build=missing -s build_type=Debug -s compiler.cppstd=20
+        run: |
+          conan install . --build=missing \
+            -s build_type=Debug -s compiler.cppstd=20 \
+            -c tools.system.package_manager:mode=install \
+            -c tools.system.package_manager:sudo=True
 
       - name: Configure
         run: cmake --preset default
