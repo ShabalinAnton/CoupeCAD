@@ -31,8 +31,9 @@ TopoDS_Compound build_hardware_compound(const core::Project& project,
     for (const auto& att : item.attachments) {
         const auto panel_it = panels.find(att.panel_id);
         if (panel_it == panels.end()) {
-            throw core::DomainError{"HARDWARE_ATTACHMENT_PANEL_NOT_FOUND",
-                                    "Attachment refers to unknown panel"};
+            throw core::DomainError{
+                "HARDWARE_ATTACHMENT_PANEL_NOT_FOUND",
+                "Attachment refers to unknown panel: " + att.panel_id.to_string()};
         }
         const auto pg = core::compute_panel_geometry(project.cabinet(),
                                                      panel_it->second);

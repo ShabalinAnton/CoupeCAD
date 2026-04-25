@@ -210,6 +210,27 @@ TEST(GeometryBuilderTest, ApplyChanges_EmptyChangeSetIsNoop) {
     EXPECT_TRUE(c1.IsSame(c2));
 }
 
+// Spec §5.2: материалы не влияют на shape. ChangeSet с одними только
+// material-дельтами не должен ронять кеши и не должен помечать compound dirty.
+TEST(GeometryBuilderTest, ApplyChanges_MaterialOnlyDeltaDoesNotDirtyCompound) {
+    auto p = make_project_with_one_panel();
+    GeometryBuilder b(p);
+
+    const auto panel_id = p.cabinet().panels.begin()->first;
+    b.panel_solid(panel_id);
+    const TopoDS_Compound& c1 = b.cabinet_compound();
+
+    ChangeSet cs;
+    cs.added_materials.push_back(MaterialId{p.uuid_gen().next()});
+    b.apply_changes(cs);
+
+    EXPECT_EQ(b.panel_cache_size(), 1u)
+        << "material delta не должна выселять panel cache";
+    const TopoDS_Compound& c2 = b.cabinet_compound();
+    EXPECT_TRUE(c1.IsSame(c2))
+        << "material delta не должна триггерить rebuild compound";
+}
+
 TEST(GeometryBuilderTest, ApplyChanges_NonEmptyDeltaMarksCompoundDirty) {
     auto p = make_project_with_one_panel();
     GeometryBuilder b(p);

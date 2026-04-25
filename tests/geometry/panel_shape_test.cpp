@@ -18,15 +18,26 @@ namespace {
 
 using coupecad::core::Cabinet;
 using coupecad::core::CabinetId;
+using coupecad::core::CustomParams;
 using coupecad::core::Dimensions;
+using coupecad::core::DividerHorizontalParams;
+using coupecad::core::DividerVerticalParams;
+using coupecad::core::DrawerBackParams;
+using coupecad::core::DrawerBottomParams;
+using coupecad::core::DrawerFrontParams;
+using coupecad::core::DrawerSideParams;
+using coupecad::core::FacadeParams;
 using coupecad::core::make_seeded_uuid_generator;
 using coupecad::core::MaterialId;
 using coupecad::core::Millimeters;
 using coupecad::core::Panel;
 using coupecad::core::PanelId;
 using coupecad::core::PanelRole;
+using coupecad::core::PlinthParams;
+using coupecad::core::Quat;
 using coupecad::core::ShelfFullWidth;
 using coupecad::core::ShelfParams;
+using coupecad::core::Vec3;
 using coupecad::geometry::build_panel_solid;
 
 // Минимальная фабрика стандартного шкафа 800×500×2000, толщина панелей 16.
@@ -150,4 +161,169 @@ TEST(PanelShapeTest, Shelf_AtMiddleHeight_HasCorrectZ) {
     // Shelf: z от height_from_bottom до height_from_bottom + default_panel_thickness.
     EXPECT_NEAR(zmin, 1000.0, 1e-6);
     EXPECT_NEAR(zmax, 1016.0, 1e-6);
+}
+
+// --- Smoke tests для остальных ролей с обязательными RoleParams ---
+// Spec §11 требует покрытия всех 15 ролей. Top/Bottom/SideLeft/SideRight/Back
+// покрыты PanelShapeAllRolesTest, Shelf — отдельным тестом выше. Ниже — оставшиеся 9.
+
+TEST(PanelShapeTest, DividerVertical_ProducesValidSolid) {
+    Cabinet c = make_cabinet();
+    Panel p = make_role_panel(PanelRole::DividerVertical);
+    p.role_params = DividerVerticalParams{Millimeters{400}};
+
+    const TopoDS_Solid solid = build_panel_solid(c, p);
+
+    EXPECT_EQ(solid.ShapeType(), TopAbs_SOLID);
+    GProp_GProps vp;
+    BRepGProp::VolumeProperties(solid, vp);
+    EXPECT_GT(vp.Mass(), 0.0);
+}
+
+TEST(PanelShapeTest, DividerHorizontal_ProducesValidSolid) {
+    Cabinet c = make_cabinet();
+    Panel p = make_role_panel(PanelRole::DividerHorizontal);
+    p.role_params = DividerHorizontalParams{Millimeters{500}};
+
+    const TopoDS_Solid solid = build_panel_solid(c, p);
+
+    EXPECT_EQ(solid.ShapeType(), TopAbs_SOLID);
+    GProp_GProps vp;
+    BRepGProp::VolumeProperties(solid, vp);
+    EXPECT_GT(vp.Mass(), 0.0);
+}
+
+TEST(PanelShapeTest, Facade_ProducesValidSolid) {
+    Cabinet c = make_cabinet();
+    Panel p = make_role_panel(PanelRole::Facade);
+    p.role_params = FacadeParams{};
+
+    const TopoDS_Solid solid = build_panel_solid(c, p);
+
+    EXPECT_EQ(solid.ShapeType(), TopAbs_SOLID);
+    GProp_GProps vp;
+    BRepGProp::VolumeProperties(solid, vp);
+    EXPECT_GT(vp.Mass(), 0.0);
+}
+
+TEST(PanelShapeTest, DrawerBottom_ProducesValidSolid) {
+    Cabinet c = make_cabinet();
+    Panel p = make_role_panel(PanelRole::DrawerBottom);
+    p.role_params = DrawerBottomParams{Millimeters{200}, Millimeters{450}};
+
+    const TopoDS_Solid solid = build_panel_solid(c, p);
+
+    EXPECT_EQ(solid.ShapeType(), TopAbs_SOLID);
+    GProp_GProps vp;
+    BRepGProp::VolumeProperties(solid, vp);
+    EXPECT_GT(vp.Mass(), 0.0);
+}
+
+TEST(PanelShapeTest, DrawerFront_ProducesValidSolid) {
+    Cabinet c = make_cabinet();
+    Panel p = make_role_panel(PanelRole::DrawerFront);
+    p.role_params = DrawerFrontParams{Millimeters{200}, Millimeters{180}};
+
+    const TopoDS_Solid solid = build_panel_solid(c, p);
+
+    EXPECT_EQ(solid.ShapeType(), TopAbs_SOLID);
+    GProp_GProps vp;
+    BRepGProp::VolumeProperties(solid, vp);
+    EXPECT_GT(vp.Mass(), 0.0);
+}
+
+TEST(PanelShapeTest, DrawerSide_ProducesValidSolid) {
+    Cabinet c = make_cabinet();
+    Panel p = make_role_panel(PanelRole::DrawerSide);
+    p.role_params = DrawerSideParams{Millimeters{200}, Millimeters{180},
+                                     Millimeters{450},
+                                     DrawerSideParams::Side::Left};
+
+    const TopoDS_Solid solid = build_panel_solid(c, p);
+
+    EXPECT_EQ(solid.ShapeType(), TopAbs_SOLID);
+    GProp_GProps vp;
+    BRepGProp::VolumeProperties(solid, vp);
+    EXPECT_GT(vp.Mass(), 0.0);
+}
+
+TEST(PanelShapeTest, DrawerBack_ProducesValidSolid) {
+    Cabinet c = make_cabinet();
+    Panel p = make_role_panel(PanelRole::DrawerBack);
+    p.role_params = DrawerBackParams{Millimeters{200}, Millimeters{180}};
+
+    const TopoDS_Solid solid = build_panel_solid(c, p);
+
+    EXPECT_EQ(solid.ShapeType(), TopAbs_SOLID);
+    GProp_GProps vp;
+    BRepGProp::VolumeProperties(solid, vp);
+    EXPECT_GT(vp.Mass(), 0.0);
+}
+
+TEST(PanelShapeTest, Plinth_ProducesValidSolid) {
+    Cabinet c = make_cabinet();
+    Panel p = make_role_panel(PanelRole::Plinth);
+    p.role_params = PlinthParams{Millimeters{100}, Millimeters{50}};
+
+    const TopoDS_Solid solid = build_panel_solid(c, p);
+
+    EXPECT_EQ(solid.ShapeType(), TopAbs_SOLID);
+    GProp_GProps vp;
+    BRepGProp::VolumeProperties(solid, vp);
+    EXPECT_GT(vp.Mass(), 0.0);
+}
+
+TEST(PanelShapeTest, Custom_AxisAligned_BBoxMatchesParams) {
+    Cabinet c = make_cabinet();
+    Panel p = make_role_panel(PanelRole::Custom);
+    p.role_params = CustomParams{
+        Vec3{Millimeters{100}, Millimeters{50}, Millimeters{200}},
+        Vec3{Millimeters{300}, Millimeters{40}, Millimeters{600}},
+        Quat::identity()};
+
+    const TopoDS_Solid solid = build_panel_solid(c, p);
+
+    Bnd_Box bbox;
+    BRepBndLib::Add(solid, bbox);
+    double xmin, ymin, zmin, xmax, ymax, zmax;
+    bbox.Get(xmin, ymin, zmin, xmax, ymax, zmax);
+    EXPECT_NEAR(xmin, 100.0, 1e-6);
+    EXPECT_NEAR(ymin, 50.0,  1e-6);
+    EXPECT_NEAR(zmin, 200.0, 1e-6);
+    EXPECT_NEAR(xmax, 400.0, 1e-6);
+    EXPECT_NEAR(ymax, 90.0,  1e-6);
+    EXPECT_NEAR(zmax, 800.0, 1e-6);
+}
+
+// Spec §10 risk #4: тест с произвольной ориентацией Custom-панели.
+// Поворот 90° вокруг Z вокруг origin: размер 100×40×200, position (200,100,0).
+// После поворота 90° по Z box (100×40×200) занимает диапазон x:[-40,0], y:[0,100],
+// затем сдвиг на (200,100,0) даёт bbox x:[160,200], y:[100,200], z:[0,200].
+TEST(PanelShapeTest, Custom_RotatedAroundZ_BBoxIsRotatedThenTranslated) {
+    Cabinet c = make_cabinet();
+    Panel p = make_role_panel(PanelRole::Custom);
+    // Quat (w,x,y,z) для поворота 90° вокруг Z = (cos45°, 0, 0, sin45°).
+    constexpr double s = 0.70710678118654752440;
+    p.role_params = CustomParams{
+        Vec3{Millimeters{200}, Millimeters{100}, Millimeters{0}},
+        Vec3{Millimeters{100}, Millimeters{40}, Millimeters{200}},
+        Quat{s, 0.0, 0.0, s}};
+
+    const TopoDS_Solid solid = build_panel_solid(c, p);
+
+    EXPECT_EQ(solid.ShapeType(), TopAbs_SOLID);
+    Bnd_Box bbox;
+    BRepBndLib::Add(solid, bbox);
+    double xmin, ymin, zmin, xmax, ymax, zmax;
+    bbox.Get(xmin, ymin, zmin, xmax, ymax, zmax);
+    EXPECT_NEAR(xmin, 160.0, 1e-6);
+    EXPECT_NEAR(xmax, 200.0, 1e-6);
+    EXPECT_NEAR(ymin, 100.0, 1e-6);
+    EXPECT_NEAR(ymax, 200.0, 1e-6);
+    EXPECT_NEAR(zmin, 0.0,   1e-6);
+    EXPECT_NEAR(zmax, 200.0, 1e-6);
+
+    GProp_GProps vp;
+    BRepGProp::VolumeProperties(solid, vp);
+    EXPECT_NEAR(vp.Mass(), 100.0 * 40.0 * 200.0, 1e-3);
 }

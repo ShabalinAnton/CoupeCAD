@@ -51,7 +51,14 @@ void GeometryBuilder::apply_changes(const core::ChangeSet& cs) {
     // added_panels / added_hardware — ничего не делаем, build on demand.
     // materials (added/removed/updated) — на shape не влияют.
 
-    if (!cs.empty()) {
+    // Compound пересобираем только если поменялось то, что в нём лежит.
+    // Material-only дельты не должны драйвить полный rebuild (spec §5.2).
+    const bool shape_changed =
+        !cs.added_panels.empty() || !cs.removed_panels.empty() ||
+        !cs.updated_panels.empty() || !cs.added_hardware.empty() ||
+        !cs.removed_hardware.empty() || !cs.updated_hardware.empty() ||
+        cs.cabinet_changed;
+    if (shape_changed) {
         compound_dirty_ = true;
     }
 }
