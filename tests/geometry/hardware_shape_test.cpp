@@ -115,7 +115,12 @@ TEST(HardwareShapeTest, UnknownSpecRef_ThrowsDomainError) {
     auto& item = fx.project.mutable_cabinet().hardware.at(fx.item_id);
     item.ref = HardwareRef{"does.not.exist"};
 
-    EXPECT_THROW(build_hardware_compound(fx.project, item), DomainError);
+    try {
+        (void)build_hardware_compound(fx.project, item);
+        FAIL() << "Expected DomainError";
+    } catch (const DomainError& ex) {
+        EXPECT_EQ(ex.code(), "project.hardware_ref_missing");
+    }
 }
 
 TEST(HardwareShapeTest, UnknownAttachmentPanel_ThrowsDomainError) {
@@ -124,5 +129,12 @@ TEST(HardwareShapeTest, UnknownAttachmentPanel_ThrowsDomainError) {
     auto orphan = make_seeded_uuid_generator(99);
     item.attachments[0].panel_id = PanelId{orphan->next()};
 
-    EXPECT_THROW(build_hardware_compound(fx.project, item), DomainError);
+    try {
+        (void)build_hardware_compound(fx.project, item);
+        FAIL() << "Expected DomainError";
+    } catch (const DomainError& ex) {
+        EXPECT_EQ(ex.code(), "cabinet.hardware_unknown_panel");
+        EXPECT_NE(std::string{ex.what()}.find(item.attachments[0].panel_id.to_string()),
+                  std::string::npos);
+    }
 }

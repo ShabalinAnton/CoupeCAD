@@ -19,8 +19,9 @@ namespace coupecad::geometry {
 //
 // Не thread-safe. Все методы вызываются из одного потока (UI).
 //
-// Время жизни возвращаемых ссылок — до следующего apply_changes,
-// rebuild_all или вызова панель/hardware-метода, который инвалидирует кеш.
+// Время жизни возвращаемых ссылок — до следующего apply_changes()
+// или rebuild_all(). После любой инвалидации кеша старые ссылки
+// использовать нельзя.
 class GeometryBuilder {
 public:
     explicit GeometryBuilder(const core::Project& project);

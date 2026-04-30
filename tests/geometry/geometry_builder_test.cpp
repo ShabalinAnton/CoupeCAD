@@ -2,6 +2,7 @@
 
 #include "coupecad/core/cabinet.h"
 #include "coupecad/core/commands/change_set.h"
+#include "coupecad/core/errors.h"
 #include "coupecad/core/hardware.h"
 #include "coupecad/core/material.h"
 #include "coupecad/core/panel.h"
@@ -102,6 +103,19 @@ TEST(GeometryBuilderTest, PanelSolid_LazyBuildAndCache) {
     EXPECT_TRUE(s1.IsSame(s2));
 }
 
+TEST(GeometryBuilderTest, PanelSolid_UnknownIdThrowsDomainErrorCode) {
+    auto p = make_project_with_one_panel();
+    GeometryBuilder b(p);
+    const auto unknown_id = PanelId{make_seeded_uuid_generator(999)->next()};
+
+    try {
+        (void)b.panel_solid(unknown_id);
+        FAIL() << "Expected DomainError";
+    } catch (const DomainError& ex) {
+        EXPECT_EQ(ex.code(), "geometry.panel_not_found");
+    }
+}
+
 TEST(GeometryBuilderTest, HardwareCompound_LazyBuildAndCache) {
     auto ph = make_project_with_hardware(303);
     GeometryBuilder b(ph.project);
@@ -113,6 +127,19 @@ TEST(GeometryBuilderTest, HardwareCompound_LazyBuildAndCache) {
 
     const TopoDS_Compound& c2 = b.hardware_compound(ph.item_id);
     EXPECT_TRUE(c1.IsSame(c2));
+}
+
+TEST(GeometryBuilderTest, HardwareCompound_UnknownIdThrowsDomainErrorCode) {
+    auto ph = make_project_with_hardware(303);
+    GeometryBuilder b(ph.project);
+    const auto unknown_id = HardwareItemId{make_seeded_uuid_generator(1001)->next()};
+
+    try {
+        (void)b.hardware_compound(unknown_id);
+        FAIL() << "Expected DomainError";
+    } catch (const DomainError& ex) {
+        EXPECT_EQ(ex.code(), "geometry.hardware_not_found");
+    }
 }
 
 TEST(GeometryBuilderTest, CabinetCompound_ContainsAllPanels) {

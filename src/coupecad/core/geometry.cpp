@@ -3,6 +3,7 @@
 #include "coupecad/core/errors.h"
 
 #include <algorithm>
+#include <string>
 
 namespace coupecad::core {
 
@@ -18,6 +19,16 @@ void require_positive_size(const Vec3& size, const char* code) {
     if (size.x.value() <= 0 || size.y.value() <= 0 || size.z.value() <= 0) {
         throw DomainError{code, "Computed panel size has non-positive dimension"};
     }
+}
+
+template <class Params>
+const Params& role_params_or_throw(const Panel& panel) {
+    if (const auto* params = std::get_if<Params>(&panel.role_params)) {
+        return *params;
+    }
+    throw DomainError{
+        "geometry.role_params_mismatch",
+        "Panel role_params do not match role " + std::string(panel_role_name(panel.role))};
 }
 
 }  // namespace
@@ -57,7 +68,7 @@ PanelGeometry compute_panel_geometry(const Cabinet& c, const Panel& p) {
             break;
         }
         case PanelRole::Shelf: {
-            const auto& sp = std::get<ShelfParams>(p.role_params);
+            const auto& sp = role_params_or_throw<ShelfParams>(p);
             if (sp.height_from_bottom.value() < 0 ||
                 sp.height_from_bottom + t > H) {
                 throw DomainError{"geometry.shelf_overflow",
@@ -84,8 +95,8 @@ PanelGeometry compute_panel_geometry(const Cabinet& c, const Panel& p) {
                     throw DomainError{"geometry.shelf_divider_role",
                                       "ShelfBetweenDividers references non-vertical-divider"};
                 }
-                const auto& f_dp = std::get<DividerVerticalParams>(fit->second.role_params);
-                const auto& t_dp = std::get<DividerVerticalParams>(tit->second.role_params);
+                const auto& f_dp = role_params_or_throw<DividerVerticalParams>(fit->second);
+                const auto& t_dp = role_params_or_throw<DividerVerticalParams>(tit->second);
                 from_x = f_dp.offset_from_left + side_t;  // правый край левого
                 to_x   = t_dp.offset_from_left;           // левый край правого
             }
@@ -94,7 +105,7 @@ PanelGeometry compute_panel_geometry(const Cabinet& c, const Panel& p) {
             break;
         }
         case PanelRole::DividerVertical: {
-            const auto& dp = std::get<DividerVerticalParams>(p.role_params);
+            const auto& dp = role_params_or_throw<DividerVerticalParams>(p);
             Millimeters from_z{0};
             Millimeters to_z = H;
             if (std::holds_alternative<VerticalExtentRange>(dp.height_extent)) {
@@ -107,7 +118,7 @@ PanelGeometry compute_panel_geometry(const Cabinet& c, const Panel& p) {
             break;
         }
         case PanelRole::DividerHorizontal: {
-            const auto& dp = std::get<DividerHorizontalParams>(p.role_params);
+            const auto& dp = role_params_or_throw<DividerHorizontalParams>(p);
             Millimeters from_y{0};
             Millimeters to_y = D - t_back;
             if (std::holds_alternative<DepthExtentRange>(dp.depth_extent)) {
@@ -121,7 +132,7 @@ PanelGeometry compute_panel_geometry(const Cabinet& c, const Panel& p) {
             break;
         }
         case PanelRole::Facade: {
-            const auto& fp = std::get<FacadeParams>(p.role_params);
+            const auto& fp = role_params_or_throw<FacadeParams>(p);
             Millimeters from_x{0};
             Millimeters to_x = W;
             Millimeters from_z{0};
@@ -140,43 +151,43 @@ PanelGeometry compute_panel_geometry(const Cabinet& c, const Panel& p) {
             break;
         }
         case PanelRole::DrawerBottom: {
-            const auto& dp = std::get<DrawerBottomParams>(p.role_params);
+            const auto& dp = role_params_or_throw<DrawerBottomParams>(p);
             const auto side_t = c.default_panel_thickness;
             g.origin = Vec3{side_t, Millimeters{0}, dp.height_from_bottom};
             g.size = Vec3{W - Millimeters{2 * side_t.value()}, dp.depth, t};
             break;
         }
         case PanelRole::DrawerFront: {
-            const auto& dp = std::get<DrawerFrontParams>(p.role_params);
+            const auto& dp = role_params_or_throw<DrawerFrontParams>(p);
             g.origin = Vec3{Millimeters{0}, -t, dp.height_from_bottom};
             g.size = Vec3{W, t, dp.height};
             break;
         }
         case PanelRole::DrawerSide: {
-            const auto& dp = std::get<DrawerSideParams>(p.role_params);
+            const auto& dp = role_params_or_throw<DrawerSideParams>(p);
             const auto side_t = c.default_panel_thickness;
             Millimeters x = (dp.side == DrawerSideParams::Side::Left)
-                                ? side_t
-                                : W - side_t - t;
+                                 ? side_t
+                                 : W - side_t - t;
             g.origin = Vec3{x, Millimeters{0}, dp.height_from_bottom};
             g.size = Vec3{t, dp.depth, dp.height};
             break;
         }
         case PanelRole::DrawerBack: {
-            const auto& dp = std::get<DrawerBackParams>(p.role_params);
+            const auto& dp = role_params_or_throw<DrawerBackParams>(p);
             const auto side_t = c.default_panel_thickness;
             g.origin = Vec3{side_t, D - t_back - t, dp.height_from_bottom};
             g.size = Vec3{W - Millimeters{2 * side_t.value()}, t, dp.height};
             break;
         }
         case PanelRole::Plinth: {
-            const auto& pp = std::get<PlinthParams>(p.role_params);
+            const auto& pp = role_params_or_throw<PlinthParams>(p);
             g.origin = Vec3{Millimeters{0}, pp.setback, Millimeters{0}};
             g.size = Vec3{W, t, pp.height};
             break;
         }
         case PanelRole::Custom: {
-            const auto& cp = std::get<CustomParams>(p.role_params);
+            const auto& cp = role_params_or_throw<CustomParams>(p);
             g.origin = cp.position;
             g.size = cp.size;
             g.orientation = cp.orientation;

@@ -17,7 +17,7 @@ TopoDS_Solid build_panel_solid(const core::Cabinet& cabinet,
     const auto dims = to_box_dims(pg.size);
 
     if (dims.dx <= 0.0 || dims.dy <= 0.0 || dims.dz <= 0.0) {
-        throw core::DomainError{"PANEL_BOX_NON_POSITIVE",
+        throw core::DomainError{"geometry.panel_box_nonpositive",
                                 "Panel size has non-positive dimension"};
     }
 

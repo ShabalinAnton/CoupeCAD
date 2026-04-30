@@ -3,6 +3,7 @@
 #include "coupecad/geometry/cabinet_shape.h"
 #include "coupecad/geometry/hardware_shape.h"
 #include "coupecad/geometry/panel_shape.h"
+#include "coupecad/core/errors.h"
 #include "coupecad/logging/logger.h"
 
 namespace coupecad::geometry {
@@ -70,9 +71,13 @@ const TopoDS_Solid& GeometryBuilder::panel_solid(const core::PanelId& id) {
     }
     coupecad::logging::Logger::instance().trace(
         "geometry", "build panel solid {}", id.to_string());
-    const auto& panel = project_.cabinet().panels.at(id);
+    const auto panel_it = project_.cabinet().panels.find(id);
+    if (panel_it == project_.cabinet().panels.end()) {
+        throw core::DomainError{"geometry.panel_not_found",
+                                "Panel not found: " + id.to_string()};
+    }
     auto [inserted_it, _] = panel_cache_.emplace(
-        id, build_panel_solid(project_.cabinet(), panel));
+        id, build_panel_solid(project_.cabinet(), panel_it->second));
     return inserted_it->second;
 }
 
@@ -84,9 +89,13 @@ const TopoDS_Compound& GeometryBuilder::hardware_compound(
     }
     coupecad::logging::Logger::instance().trace(
         "geometry", "build hardware compound {}", id.to_string());
-    const auto& item = project_.cabinet().hardware.at(id);
+    const auto item_it = project_.cabinet().hardware.find(id);
+    if (item_it == project_.cabinet().hardware.end()) {
+        throw core::DomainError{"geometry.hardware_not_found",
+                                "Hardware item not found: " + id.to_string()};
+    }
     auto [inserted_it, _] = hardware_cache_.emplace(
-        id, build_hardware_compound(project_, item));
+        id, build_hardware_compound(project_, item_it->second));
     return inserted_it->second;
 }
 
