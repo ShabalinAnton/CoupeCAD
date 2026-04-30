@@ -2,12 +2,15 @@
 
 #include "coupecad/core/errors.h"
 #include "coupecad/core/geometry.h"
+#include "coupecad/core/panel.h"
 #include "coupecad/geometry/occt_helpers.h"
 
 #include <BRepBuilderAPI_Transform.hxx>
 #include <BRepPrimAPI_MakeBox.hxx>
 #include <TopoDS.hxx>
 #include <gp_Pnt.hxx>
+
+#include <string>
 
 namespace coupecad::geometry {
 
@@ -17,8 +20,11 @@ TopoDS_Solid build_panel_solid(const core::Cabinet& cabinet,
     const auto dims = to_box_dims(pg.size);
 
     if (dims.dx <= 0.0 || dims.dy <= 0.0 || dims.dz <= 0.0) {
-        throw core::DomainError{"geometry.panel_box_nonpositive",
-                                "Panel size has non-positive dimension"};
+        throw core::DomainError{
+            "geometry.panel_box_nonpositive",
+            std::string{"Panel size has non-positive dimension (role="} +
+                core::panel_role_name(panel.role) +
+                ", id=" + panel.id.to_string() + ")"};
     }
 
     BRepPrimAPI_MakeBox box(gp_Pnt(0.0, 0.0, 0.0), dims.dx, dims.dy, dims.dz);
