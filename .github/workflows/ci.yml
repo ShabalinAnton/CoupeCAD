@@ -10,7 +10,7 @@ jobs:
   build-linux:
     name: Linux (Ubuntu 22.04, GCC, Qt 6.7.3)
     runs-on: ubuntu-22.04
-    timeout-minutes: 60
+    timeout-minutes: 120
 
     steps:
       - name: Checkout
@@ -52,7 +52,11 @@ jobs:
           cache: true
 
       - name: Conan install
-        run: conan install . --build=missing -s build_type=Debug -s compiler.cppstd=20
+        run: |
+          conan install . --build=missing \
+            -s build_type=Debug -s compiler.cppstd=20 \
+            -c tools.system.package_manager:mode=install \
+            -c tools.system.package_manager:sudo=True
 
       - name: Configure
         run: cmake --preset default
@@ -75,7 +79,7 @@ jobs:
   # build-macos:
   #   name: macOS (macos-13, AppleClang, Qt 6.7.3)
   #   runs-on: macos-13
-  #   timeout-minutes: 60
+  #   timeout-minutes: 120
   #
   #   steps:
   #     - name: Checkout
@@ -130,7 +134,7 @@ jobs:
   build-windows:
     name: Windows (windows-2022, MSVC 2022, Qt 6.7.3)
     runs-on: windows-2022
-    timeout-minutes: 60
+    timeout-minutes: 120
 
     steps:
       - name: Checkout

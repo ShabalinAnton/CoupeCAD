@@ -238,3 +238,47 @@ TEST(Geometry, ThicknessOverrideUsed) {
     EXPECT_EQ(g.size.z, Millimeters{18});
     EXPECT_EQ(g.origin.z, Millimeters{2382});       // 2400 - 18
 }
+
+TEST(Geometry, RoleParamsMismatchThrowsDomainErrorCode) {
+    TestProject t;
+    Panel p;
+    p.id = t.gen().next_id<PanelIdTag>();
+    p.role = PanelRole::Shelf;
+    p.role_params = NoRoleParams{};
+
+    try {
+        (void)compute_panel_geometry(t.cab(), p);
+        FAIL() << "Expected DomainError";
+    } catch (const DomainError& ex) {
+        EXPECT_EQ(ex.code(), "geometry.role_params_mismatch");
+    }
+}
+
+TEST(Geometry, MalformedDividerRoleParamsThrowDomainErrorCode) {
+    TestProject t;
+
+    Panel left_divider;
+    left_divider.id = t.gen().next_id<PanelIdTag>();
+    left_divider.role = PanelRole::DividerVertical;
+    left_divider.role_params = NoRoleParams{};
+    const auto left_id = left_divider.id;
+    t.cab().panels.emplace(left_id, std::move(left_divider));
+
+    auto right_id = add_panel(t.cab(), t.gen(), PanelRole::DividerVertical,
+                              DividerVerticalParams{
+                                  .offset_from_left = Millimeters{1800},
+                              });
+    auto shelf_id = add_panel(t.cab(), t.gen(), PanelRole::Shelf,
+                              ShelfParams{
+                                  .height_from_bottom = Millimeters{1000},
+                                  .extent = ShelfBetweenDividers{.from = left_id,
+                                                                 .to = right_id},
+                              });
+
+    try {
+        (void)compute_panel_geometry(t.cab(), t.cab().panels.at(shelf_id));
+        FAIL() << "Expected DomainError";
+    } catch (const DomainError& ex) {
+        EXPECT_EQ(ex.code(), "geometry.role_params_mismatch");
+    }
+}
