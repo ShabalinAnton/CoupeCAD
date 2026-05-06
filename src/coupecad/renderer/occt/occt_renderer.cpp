@@ -4,10 +4,13 @@
 #include "coupecad/geometry/geometry_builder.h"
 #include "coupecad/logging/logger.h"
 
+#include <Graphic3d_BufferType.hxx>
 #include <Graphic3d_Camera.hxx>
+#include <Image_PixMap.hxx>
 #include <gp_Dir.hxx>
 #include <gp_Pnt.hxx>
 
+#include <cstring>
 #include <string>
 #include <vector>
 
@@ -151,6 +154,12 @@ void OcctRenderer::clear_selection()            { scene_.clear_selection(); }
 std::vector<EntityId> OcctRenderer::selection() const { return scene_.selection(); }
 
 void OcctRenderer::set_viewport_size(ViewportSize size) {
+    if (size.width <= 0 || size.height <= 0) {
+        throw core::DomainError{
+            "renderer.invalid_viewport_size",
+            "Viewport size must be positive: w=" + std::to_string(size.width) +
+                ", h=" + std::to_string(size.height)};
+    }
     driver_.set_viewport_size(size.width, size.height);
 }
 
@@ -158,7 +167,26 @@ ViewportSize OcctRenderer::viewport_size() const {
     return ViewportSize{driver_.viewport_width(), driver_.viewport_height()};
 }
 
-std::vector<std::uint8_t> OcctRenderer::render_to_image() { not_implemented_yet("render_to_image"); }
+std::vector<std::uint8_t> OcctRenderer::render_to_image() {
+    if (!driver_.gl_available()) {
+        coupecad::logging::Logger::instance().warn(
+            "renderer", "renderer.gl_unavailable: render_to_image returns empty");
+        return {};
+    }
+    const int w = driver_.viewport_width();
+    const int h = driver_.viewport_height();
+    Image_PixMap image;
+    image.InitZero(Image_Format_RGBA, w, h);
+    if (!driver_.view()->ToPixMap(image, w, h, Graphic3d_BT_RGBA)) {
+        coupecad::logging::Logger::instance().warn(
+            "renderer", "renderer.render_to_image: ToPixMap failed");
+        return {};
+    }
+    std::vector<std::uint8_t> out(static_cast<std::size_t>(w) *
+                                   static_cast<std::size_t>(h) * 4u);
+    std::memcpy(out.data(), image.Data(), out.size());
+    return out;
+}
 
 std::unique_ptr<IRenderer> make_occt_renderer(const core::Project& project,
                                               geometry::GeometryBuilder& builder) {
