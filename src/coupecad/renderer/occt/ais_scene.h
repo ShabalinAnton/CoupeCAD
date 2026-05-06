@@ -57,6 +57,13 @@ public:
     // Clear all panels + hardware from the scene (used by rebuild_all in Task 9).
     void clear();
 
+    // Selection.
+    bool                    has_entity(const EntityId& id) const noexcept;
+    void                    select(const EntityId& id);   // throws if unknown
+    void                    deselect(const EntityId& id); // no-op if unknown
+    void                    clear_selection();
+    std::vector<EntityId>   selection() const;
+
     // Test helpers (not part of stable API).
     Handle(AIS_Shape) raw_ais_handle_for_panel(const core::PanelId& id) const;
     const AIS_InteractiveObject* raw_ais_pointer_for_panel(
@@ -67,6 +74,7 @@ public:
 private:
     void erase_panel_internal(const core::PanelId& id);
     void erase_hardware_internal(const core::HardwareItemId& id);
+    Handle(AIS_InteractiveObject) ais_for_entity(const EntityId& id) const;
 
     ViewDriver&                          driver_;
     const core::Project&                 project_;

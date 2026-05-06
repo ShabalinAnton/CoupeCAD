@@ -145,10 +145,10 @@ std::optional<EntityId> OcctRenderer::pick(int /*x*/, int /*y*/) {
     not_implemented_yet("pick");
 }
 
-void                  OcctRenderer::select(const EntityId&)   { not_implemented_yet("select"); }
-void                  OcctRenderer::deselect(const EntityId&) { not_implemented_yet("deselect"); }
-void                  OcctRenderer::clear_selection()         { not_implemented_yet("clear_selection"); }
-std::vector<EntityId> OcctRenderer::selection() const         { not_implemented_yet("selection"); }
+void OcctRenderer::select(const EntityId& id)   { scene_.select(id); }
+void OcctRenderer::deselect(const EntityId& id) { scene_.deselect(id); }
+void OcctRenderer::clear_selection()            { scene_.clear_selection(); }
+std::vector<EntityId> OcctRenderer::selection() const { return scene_.selection(); }
 
 void          OcctRenderer::set_viewport_size(ViewportSize) { not_implemented_yet("set_viewport_size"); }
 ViewportSize  OcctRenderer::viewport_size() const           { not_implemented_yet("viewport_size"); }

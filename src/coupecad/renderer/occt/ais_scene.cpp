@@ -1,8 +1,11 @@
 #include "coupecad/renderer/occt/ais_scene.h"
 
+#include "coupecad/core/errors.h"
 #include "coupecad/logging/logger.h"
 #include "coupecad/renderer/occt/material_resolver.h"
 #include "coupecad/renderer/occt/view_driver.h"
+
+#include <type_traits>
 
 namespace coupecad::renderer::occt {
 
@@ -178,6 +181,65 @@ const AIS_InteractiveObject* AisScene::raw_ais_pointer_for_hardware(
     const core::HardwareItemId& id) const {
     auto it = hardware_objects_.find(id);
     return it == hardware_objects_.end() ? nullptr : it->second.get();
+}
+
+bool AisScene::has_entity(const EntityId& id) const noexcept {
+    return std::visit([this](const auto& v) -> bool {
+        using T = std::decay_t<decltype(v)>;
+        if constexpr (std::is_same_v<T, core::PanelId>) {
+            return panel_objects_.find(v) != panel_objects_.end();
+        } else {
+            return hardware_objects_.find(v) != hardware_objects_.end();
+        }
+    }, id);
+}
+
+Handle(AIS_InteractiveObject) AisScene::ais_for_entity(const EntityId& id) const {
+    return std::visit([this](const auto& v) -> Handle(AIS_InteractiveObject) {
+        using T = std::decay_t<decltype(v)>;
+        if constexpr (std::is_same_v<T, core::PanelId>) {
+            auto it = panel_objects_.find(v);
+            return it == panel_objects_.end()
+                ? Handle(AIS_InteractiveObject){}
+                : Handle(AIS_InteractiveObject)(it->second);
+        } else {
+            auto it = hardware_objects_.find(v);
+            return it == hardware_objects_.end()
+                ? Handle(AIS_InteractiveObject){}
+                : Handle(AIS_InteractiveObject)(it->second);
+        }
+    }, id);
+}
+
+void AisScene::select(const EntityId& id) {
+    auto ais = ais_for_entity(id);
+    if (ais.IsNull()) {
+        throw core::DomainError{"renderer.unknown_entity_in_selection",
+                                "Entity not in renderer scene"};
+    }
+    context_->AddOrRemoveSelected(ais, Standard_False);
+}
+
+void AisScene::deselect(const EntityId& id) {
+    auto ais = ais_for_entity(id);
+    if (ais.IsNull()) return;
+    if (context_->IsSelected(ais)) {
+        context_->AddOrRemoveSelected(ais, Standard_False);
+    }
+}
+
+void AisScene::clear_selection() {
+    context_->ClearSelected(Standard_False);
+}
+
+std::vector<EntityId> AisScene::selection() const {
+    std::vector<EntityId> result;
+    for (context_->InitSelected(); context_->MoreSelected(); context_->NextSelected()) {
+        Handle(AIS_InteractiveObject) sel = context_->SelectedInteractive();
+        auto it = ais_to_entity_.find(sel.get());
+        if (it != ais_to_entity_.end()) result.push_back(it->second);
+    }
+    return result;
 }
 
 }  // namespace coupecad::renderer::occt
