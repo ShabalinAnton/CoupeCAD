@@ -16,16 +16,6 @@
 
 namespace coupecad::renderer::occt {
 
-namespace {
-
-[[noreturn]] void not_implemented_yet(const char* where) {
-    throw core::DomainError{"renderer.not_implemented_yet",
-                            std::string{"OcctRenderer::"} + where +
-                                " не реализовано (заполняется в плане Stage 3)"};
-}
-
-}  // namespace
-
 OcctRenderer::OcctRenderer(const core::Project& project,
                            geometry::GeometryBuilder& builder)
     : project_(project), builder_(builder), scene_(driver_, project_) {

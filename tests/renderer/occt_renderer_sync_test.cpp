@@ -145,3 +145,10 @@ TEST(OcctRendererSyncTest, RebuildAllClearsAndRepopulates) {
     EXPECT_TRUE(f.renderer.scene().has_panel(pid));
     EXPECT_EQ(f.renderer.scene().panel_count(), 1u);
 }
+
+TEST(OcctRendererFactory, MakeOcctRendererReturnsNonNull) {
+    Project project = Project::create_empty("factory");
+    GeometryBuilder builder{project};
+    auto r = coupecad::renderer::occt::make_occt_renderer(project, builder);
+    EXPECT_TRUE(static_cast<bool>(r));
+}
