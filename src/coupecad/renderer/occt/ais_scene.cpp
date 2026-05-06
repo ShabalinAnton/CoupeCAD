@@ -5,6 +5,8 @@
 #include "coupecad/renderer/occt/material_resolver.h"
 #include "coupecad/renderer/occt/view_driver.h"
 
+#include <Standard_Failure.hxx>
+
 #include <type_traits>
 
 namespace coupecad::renderer::occt {
@@ -240,6 +242,29 @@ std::vector<EntityId> AisScene::selection() const {
         if (it != ais_to_entity_.end()) result.push_back(it->second);
     }
     return result;
+}
+
+std::optional<EntityId> AisScene::pick(int x, int y, const Handle(V3d_View)& view) {
+    Standard_Integer w = 1, h = 1;
+    view->Window()->Size(w, h);
+    if (x < 0 || y < 0 || x >= w || y >= h) return std::nullopt;
+
+    try {
+        context_->MoveTo(static_cast<Standard_Integer>(x),
+                         static_cast<Standard_Integer>(y),
+                         view, Standard_False);
+    } catch (const Standard_Failure& e) {
+        coupecad::logging::Logger::instance().warn(
+            "renderer", "renderer.pick_unavailable_headless: {}",
+            e.GetMessageString());
+        return std::nullopt;
+    }
+    if (!context_->HasDetected()) return std::nullopt;
+
+    Handle(AIS_InteractiveObject) det = context_->DetectedInteractive();
+    auto it = ais_to_entity_.find(det.get());
+    if (it == ais_to_entity_.end()) return std::nullopt;
+    return it->second;
 }
 
 }  // namespace coupecad::renderer::occt

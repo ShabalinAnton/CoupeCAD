@@ -8,7 +8,9 @@
 #include <AIS_Shape.hxx>
 #include <TopoDS_Compound.hxx>
 #include <TopoDS_Solid.hxx>
+#include <V3d_View.hxx>
 
+#include <optional>
 #include <unordered_map>
 #include <vector>
 
@@ -63,6 +65,11 @@ public:
     void                    deselect(const EntityId& id); // no-op if unknown
     void                    clear_selection();
     std::vector<EntityId>   selection() const;
+
+    // Picking. Координаты — пиксели в текущем viewport'е (top-left origin).
+    // Возвращает std::nullopt, если ничего нет под курсором или координата
+    // за пределами viewport'а.
+    std::optional<EntityId> pick(int x, int y, const Handle(V3d_View)& view);
 
     // Test helpers (not part of stable API).
     Handle(AIS_Shape) raw_ais_handle_for_panel(const core::PanelId& id) const;

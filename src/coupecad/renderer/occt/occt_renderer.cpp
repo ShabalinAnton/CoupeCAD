@@ -141,8 +141,8 @@ void OcctRenderer::fit_all() {
     driver_.view()->Update();
 }
 
-std::optional<EntityId> OcctRenderer::pick(int /*x*/, int /*y*/) {
-    not_implemented_yet("pick");
+std::optional<EntityId> OcctRenderer::pick(int x, int y) {
+    return scene_.pick(x, y, driver_.view());
 }
 
 void OcctRenderer::select(const EntityId& id)   { scene_.select(id); }
@@ -150,8 +150,13 @@ void OcctRenderer::deselect(const EntityId& id) { scene_.deselect(id); }
 void OcctRenderer::clear_selection()            { scene_.clear_selection(); }
 std::vector<EntityId> OcctRenderer::selection() const { return scene_.selection(); }
 
-void          OcctRenderer::set_viewport_size(ViewportSize) { not_implemented_yet("set_viewport_size"); }
-ViewportSize  OcctRenderer::viewport_size() const           { not_implemented_yet("viewport_size"); }
+void OcctRenderer::set_viewport_size(ViewportSize size) {
+    driver_.set_viewport_size(size.width, size.height);
+}
+
+ViewportSize OcctRenderer::viewport_size() const {
+    return ViewportSize{driver_.viewport_width(), driver_.viewport_height()};
+}
 
 std::vector<std::uint8_t> OcctRenderer::render_to_image() { not_implemented_yet("render_to_image"); }
 
