@@ -19,9 +19,21 @@ void AisScene::add_panel(const core::PanelId& id, const TopoDS_Solid& solid) {
     Handle(AIS_Shape) ais = new AIS_Shape(solid);
     ais->SetColor(resolve_panel_color(project_, panel));
 
-    context_->Display(ais, /*updateViewer=*/Standard_False);
-    panel_objects_.emplace(id, ais);
-    ais_to_entity_.emplace(ais.get(), EntityId{id});
+    // Inserts first — rollback on failure keeps AIS context untouched.
+    auto [panel_it, panel_inserted] = panel_objects_.emplace(id, ais);
+    try {
+        ais_to_entity_.emplace(ais.get(), EntityId{id});
+    } catch (...) {
+        panel_objects_.erase(panel_it);
+        throw;
+    }
+    try {
+        context_->Display(ais, /*updateViewer=*/Standard_False);
+    } catch (...) {
+        ais_to_entity_.erase(ais.get());
+        panel_objects_.erase(panel_it);
+        throw;
+    }
 
     coupecad::logging::Logger::instance().trace(
         "renderer", "ais_scene.add_panel id={}", id.to_string());
