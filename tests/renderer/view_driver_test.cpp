@@ -33,3 +33,8 @@ TEST(ViewDriverTest, SetViewportSizeUpdatesNeutralWindow) {
     EXPECT_EQ(driver.viewport_width(), 800);
     EXPECT_EQ(driver.viewport_height(), 600);
 }
+
+TEST(ViewDriverTest, NeutralWindowAccessibleAfterConstruction) {
+    ViewDriver driver;
+    EXPECT_FALSE(driver.window().IsNull());
+}

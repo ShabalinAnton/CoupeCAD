@@ -14,8 +14,9 @@ Handle(OpenGl_GraphicDriver) try_make_gl_driver(bool& ok_out) {
     try {
         Handle(Aspect_DisplayConnection) display = new Aspect_DisplayConnection();
         Handle(OpenGl_GraphicDriver) drv = new OpenGl_GraphicDriver(display, false);
-        // InitContext() требует windowing system; в headless-CI бросит.
-        // Сохраняем исключение и переходим в logical mode.
+        // OpenGl_GraphicDriver(display, /*toInitialize=*/false): откладываем
+        // GL-context init. На headless-CI без X-сервера/DISPLAY уже сам
+        // Aspect_DisplayConnection() ctor бросит — поэтому ловим здесь.
         ok_out = true;
         return drv;
     } catch (const std::exception& e) {
