@@ -40,48 +40,26 @@ void OcctRenderer::sync(const core::ChangeSet& cs) {
         cs.cabinet_changed ? 1 : 0,
         cs.added_materials.size(), cs.removed_materials.size(), cs.updated_materials.size());
 
-    // Удаления.
     for (const auto& id : cs.removed_panels)   scene_.remove_panel(id);
     for (const auto& id : cs.removed_hardware) scene_.remove_hardware(id);
 
-    // Updates = replace. Держим старые Handle'ы живыми на время
-    // вызовов replace_*: иначе OCCT-аллокатор (MMgrOpt) может вернуть
-    // только что освобождённый слот следующему AIS_Shape, и raw-
-    // указатели не сменятся — это ломает инвалидацию кэшей
-    // наблюдателей сцены.
-    std::vector<Handle(AIS_Shape)> keepalive;
-    keepalive.reserve(cs.updated_panels.size());
-    for (const auto& id : cs.updated_panels)
-        keepalive.push_back(scene_.raw_ais_handle_for_panel(id));
     for (const auto& id : cs.updated_panels)
         scene_.replace_panel(id, builder_.panel_solid(id));
     for (const auto& id : cs.updated_hardware)
         scene_.replace_hardware(id, builder_.hardware_compound(id));
 
-    // Adds.
     for (const auto& id : cs.added_panels)
         scene_.add_panel(id, builder_.panel_solid(id));
     for (const auto& id : cs.added_hardware)
         scene_.add_hardware(id, builder_.hardware_compound(id));
 
-    // cabinet_changed → replace всё, что сейчас в сцене.
     if (cs.cabinet_changed) {
-        const auto pids = scene_.panel_ids();
-        const auto hids = scene_.hardware_ids();
-
-        keepalive.reserve(keepalive.size() + pids.size());
-        for (const auto& id : pids)
-            keepalive.push_back(scene_.raw_ais_handle_for_panel(id));
-
-        for (const auto& id : pids)
+        for (const auto& id : scene_.panel_ids())
             scene_.replace_panel(id, builder_.panel_solid(id));
-        for (const auto& id : hids)
+        for (const auto& id : scene_.hardware_ids())
             scene_.replace_hardware(id, builder_.hardware_compound(id));
     }
-    // keepalive выходит из scope — старая память освобождается уже
-    // после allocации новых AIS_Shape.
 
-    // Material-only дельты.
     for (const auto& mat_id : cs.added_materials)   scene_.refresh_colors_for_material(mat_id);
     for (const auto& mat_id : cs.removed_materials) scene_.refresh_colors_for_material(mat_id);
     for (const auto& mat_id : cs.updated_materials) scene_.refresh_colors_for_material(mat_id);

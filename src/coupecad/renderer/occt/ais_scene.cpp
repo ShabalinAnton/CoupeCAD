@@ -40,8 +40,16 @@ void AisScene::add_panel(const core::PanelId& id, const TopoDS_Solid& solid) {
 }
 
 void AisScene::replace_panel(const core::PanelId& id, const TopoDS_Solid& solid) {
+    // Keep the old AIS_Shape alive until after the new one is allocated, to
+    // prevent OCCT's allocator from returning the same slot to the new shape
+    // (which would defeat any pointer-identity-based change detection).
+    Handle(AIS_Shape) keep_alive;
+    if (auto it = panel_objects_.find(id); it != panel_objects_.end()) {
+        keep_alive = it->second;
+    }
     erase_panel_internal(id);
     add_panel(id, solid);
+    // keep_alive drops here.
 }
 
 void AisScene::remove_panel(const core::PanelId& id) {
@@ -103,6 +111,10 @@ void AisScene::add_hardware(const core::HardwareItemId& id,
 
 void AisScene::replace_hardware(const core::HardwareItemId& id,
                                 const TopoDS_Compound& compound) {
+    Handle(AIS_Shape) keep_alive;
+    if (auto it = hardware_objects_.find(id); it != hardware_objects_.end()) {
+        keep_alive = it->second;
+    }
     erase_hardware_internal(id);
     add_hardware(id, compound);
 }
