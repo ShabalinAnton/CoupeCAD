@@ -1,7 +1,5 @@
 #include "coupecad/renderer/entity_id.h"
 
-#include <variant>
-
 namespace std {
 
 std::size_t hash<coupecad::renderer::EntityId>::operator()(

@@ -4,12 +4,10 @@
 
 #include <gtest/gtest.h>
 
-#include <unordered_map>
 #include <unordered_set>
 
 using coupecad::core::HardwareItemId;
 using coupecad::core::PanelId;
-using coupecad::core::Id;
 using coupecad::renderer::EntityId;
 
 namespace {
@@ -43,4 +41,12 @@ TEST(EntityIdTest, UsableAsUnorderedKey) {
     EXPECT_EQ(set.size(), 2u);
     EXPECT_TRUE(set.contains(
         EntityId{make_panel_id("11111111-1111-1111-1111-111111111111")}));
+}
+
+TEST(EntityIdTest, HashDistinguishesSameUuidAcrossAlternatives) {
+    const auto p = make_panel_id("11111111-1111-1111-1111-111111111111");
+    const auto h = make_hw_id("11111111-1111-1111-1111-111111111111");
+    const std::size_t hp = std::hash<EntityId>{}(EntityId{p});
+    const std::size_t hh = std::hash<EntityId>{}(EntityId{h});
+    EXPECT_NE(hp, hh);
 }
