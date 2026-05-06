@@ -2,6 +2,7 @@ find_package(OpenCASCADE REQUIRED)
 
 add_library(coupecad_renderer_occt STATIC
     view_driver.cpp
+    material_resolver.cpp
 )
 
 target_link_libraries(coupecad_renderer_occt
