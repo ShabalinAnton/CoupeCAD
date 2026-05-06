@@ -4,6 +4,7 @@ add_executable(coupecad_renderer_test
     material_resolver_test.cpp
     ais_scene_test.cpp
     occt_renderer_sync_test.cpp
+    occt_renderer_camera_test.cpp
 )
 
 target_link_libraries(coupecad_renderer_test

@@ -4,6 +4,10 @@
 #include "coupecad/geometry/geometry_builder.h"
 #include "coupecad/logging/logger.h"
 
+#include <Graphic3d_Camera.hxx>
+#include <gp_Dir.hxx>
+#include <gp_Pnt.hxx>
+
 #include <string>
 #include <vector>
 
@@ -76,9 +80,66 @@ void OcctRenderer::rebuild_all() {
     }
 }
 
-void           OcctRenderer::set_camera(const CameraState&) { not_implemented_yet("set_camera"); }
-CameraState    OcctRenderer::camera() const                 { not_implemented_yet("camera"); }
-void           OcctRenderer::fit_all()                      { not_implemented_yet("fit_all"); }
+void OcctRenderer::set_camera(const CameraState& s) {
+    auto& view = driver_.view();
+    auto camera = view->Camera();
+    camera->SetEye(gp_Pnt(static_cast<Standard_Real>(s.eye.x.value()),
+                          static_cast<Standard_Real>(s.eye.y.value()),
+                          static_cast<Standard_Real>(s.eye.z.value())));
+    camera->SetCenter(gp_Pnt(static_cast<Standard_Real>(s.target.x.value()),
+                             static_cast<Standard_Real>(s.target.y.value()),
+                             static_cast<Standard_Real>(s.target.z.value())));
+    camera->SetUp(gp_Dir(static_cast<Standard_Real>(s.up.x.value()),
+                         static_cast<Standard_Real>(s.up.y.value()),
+                         static_cast<Standard_Real>(s.up.z.value())));
+    if (s.fov_deg <= 0.0) {
+        camera->SetProjectionType(Graphic3d_Camera::Projection_Orthographic);
+    } else {
+        camera->SetProjectionType(Graphic3d_Camera::Projection_Perspective);
+        camera->SetFOVy(s.fov_deg);
+    }
+    view->Update();
+}
+
+CameraState OcctRenderer::camera() const {
+    const auto& view = driver_.view();
+    const auto camera = view->Camera();
+    const gp_Pnt eye    = camera->Eye();
+    const gp_Pnt center = camera->Center();
+    const gp_Dir up     = camera->Up();
+
+    auto to_vec = [](const gp_Pnt& p) {
+        return core::Vec3{
+            core::Millimeters{static_cast<std::int32_t>(p.X())},
+            core::Millimeters{static_cast<std::int32_t>(p.Y())},
+            core::Millimeters{static_cast<std::int32_t>(p.Z())}};
+    };
+    auto to_vec_dir = [](const gp_Dir& d) {
+        return core::Vec3{
+            core::Millimeters{static_cast<std::int32_t>(d.X())},
+            core::Millimeters{static_cast<std::int32_t>(d.Y())},
+            core::Millimeters{static_cast<std::int32_t>(d.Z())}};
+    };
+
+    CameraState s;
+    s.eye    = to_vec(eye);
+    s.target = to_vec(center);
+    s.up     = to_vec_dir(up);
+    s.fov_deg =
+        camera->ProjectionType() == Graphic3d_Camera::Projection_Orthographic
+            ? 0.0
+            : camera->FOVy();
+    return s;
+}
+
+void OcctRenderer::fit_all() {
+    if (scene_.panel_count() == 0 && scene_.hardware_count() == 0) {
+        // Empty scene — nothing to frame; don't crash either.
+        return;
+    }
+    driver_.view()->FitAll();
+    driver_.view()->Update();
+}
 
 std::optional<EntityId> OcctRenderer::pick(int /*x*/, int /*y*/) {
     not_implemented_yet("pick");
