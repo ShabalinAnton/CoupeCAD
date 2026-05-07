@@ -55,6 +55,12 @@ private:
     geometry::GeometryBuilder&  builder_;
     ViewDriver                  driver_;
     AisScene                    scene_;
+    // Set true once attach_external_gl_driver succeeds. Used to gate
+    // render_into_current_context — even if driver_.gl_available() is
+    // true on a dev box (default ctor created its own OpenGl_GraphicDriver),
+    // render_into_current_context must throw until an external driver
+    // is attached.
+    bool                        external_driver_attached_ = false;
 };
 
 // Factory.

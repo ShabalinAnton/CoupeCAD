@@ -179,16 +179,24 @@ std::vector<std::uint8_t> OcctRenderer::render_to_image() {
 }
 
 void OcctRenderer::attach_external_gl_driver(
-    const Handle(OpenGl_GraphicDriver)& /*driver*/) {
-    throw core::DomainError{
-        "renderer.gl_unavailable",
-        "OcctRenderer::attach_external_gl_driver не реализовано (Task 4)"};
+    const Handle(OpenGl_GraphicDriver)& driver) {
+    coupecad::logging::Logger::instance().info(
+        "renderer", "attach_external_gl_driver: rebuilding ViewDriver/AisScene");
+
+    scene_.clear();
+    driver_.adopt_external_driver(driver);
+    scene_.rebind_to_driver(driver_);
+    external_driver_attached_ = !driver.IsNull();
 }
 
 void OcctRenderer::render_into_current_context() {
-    throw core::DomainError{
-        "renderer.gl_unavailable",
-        "OcctRenderer::render_into_current_context не реализовано (Task 4)"};
+    if (!external_driver_attached_ || !driver_.gl_available()) {
+        throw core::DomainError{
+            "renderer.gl_unavailable",
+            "render_into_current_context called before "
+            "attach_external_gl_driver succeeded"};
+    }
+    driver_.view()->Redraw();
 }
 
 std::unique_ptr<IRenderer> make_occt_renderer(const core::Project& project,

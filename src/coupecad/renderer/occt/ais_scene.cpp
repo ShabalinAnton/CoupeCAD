@@ -165,6 +165,14 @@ void AisScene::clear() {
     ais_to_entity_.clear();
 }
 
+void AisScene::rebind_to_driver(ViewDriver& driver) {
+    panel_objects_.clear();
+    hardware_objects_.clear();
+    ais_to_entity_.clear();
+    context_ = new AIS_InteractiveContext(driver.viewer());
+    context_->SetAutomaticHilight(Standard_False);
+}
+
 void AisScene::erase_hardware_internal(const core::HardwareItemId& id) {
     auto it = hardware_objects_.find(id);
     if (it == hardware_objects_.end()) return;

@@ -98,4 +98,27 @@ void ViewDriver::set_viewport_size(int width, int height) {
     }
 }
 
+void ViewDriver::adopt_external_driver(
+    const Handle(OpenGl_GraphicDriver)& driver) {
+    driver_ = driver;
+    gl_available_ = !driver_.IsNull();
+
+    viewer_ = new V3d_Viewer(driver_);
+    viewer_->SetDefaultLights();
+    viewer_->SetLightOn();
+
+    view_ = viewer_->CreateView();
+
+    window_ = new Aspect_NeutralWindow();
+    window_->SetSize(static_cast<Standard_Integer>(width_),
+                     static_cast<Standard_Integer>(height_));
+    view_->SetWindow(window_);
+
+    view_->SetUp(0.0, 0.0, 1.0);
+
+    coupecad::logging::Logger::instance().info(
+        "renderer", "ViewDriver adopted external driver (gl_available={})",
+        gl_available_);
+}
+
 }  // namespace coupecad::renderer::occt
