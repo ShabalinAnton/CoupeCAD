@@ -32,9 +32,38 @@ void ViewportController::rebuild_from_scratch() {
     dirty_ = true;
 }
 
-void ViewportController::on_mouse_press(int, int, MouseButton)   {}
-void ViewportController::on_mouse_move(int, int, MouseButton)    {}
-void ViewportController::on_mouse_release(int, int, MouseButton) {}
+void ViewportController::on_mouse_press(int x, int y, MouseButton btn) {
+    active_drag_ = btn;
+    drag_last_x_ = x;
+    drag_last_y_ = y;
+    drag_total_dx_ = 0;
+    drag_total_dy_ = 0;
+}
+
+void ViewportController::on_mouse_move(int x, int y, MouseButton btn) {
+    if (btn != active_drag_ || active_drag_ == MouseButton::None) return;
+
+    const int dx = x - drag_last_x_;
+    const int dy = y - drag_last_y_;
+    drag_total_dx_ += dx >= 0 ? dx : -dx;
+    drag_total_dy_ += dy >= 0 ? dy : -dy;
+    drag_last_x_ = x;
+    drag_last_y_ = y;
+
+    // Camera deltas come in Task 9; for now just consume the event so
+    // the drag-state machine is exercised by tests.
+    (void)dx;
+    (void)dy;
+}
+
+void ViewportController::on_mouse_release(int x, int y, MouseButton btn) {
+    // Pick-on-click logic comes in Task 10.
+    (void)x;
+    (void)y;
+    (void)btn;
+    active_drag_ = MouseButton::None;
+}
+
 void ViewportController::on_wheel(int, int, double)              {}
 void ViewportController::fit_all()                                {}
 

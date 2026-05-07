@@ -51,3 +51,40 @@ TEST(ViewportControllerTest, SetViewportSizeForwardsToRenderer) {
     EXPECT_EQ(fake.last_set_viewport.height, 1080);
     EXPECT_TRUE(controller.dirty());
 }
+
+TEST(ViewportControllerTest, MousePressDoesNotCallRendererBeforeRelease) {
+    Project project = Project::create_empty("vc5");
+    GeometryBuilder builder{project};
+    FakeRenderer fake;
+    ViewportController controller{project, builder, fake};
+
+    controller.on_mouse_press(100, 100, coupecad::viewport::MouseButton::Right);
+    EXPECT_TRUE(fake.set_camera_calls.empty());
+    EXPECT_EQ(fake.clear_selection_count, 0);
+}
+
+TEST(ViewportControllerTest, MouseMoveWithMismatchedButtonIsNoOp) {
+    Project project = Project::create_empty("vc6");
+    GeometryBuilder builder{project};
+    FakeRenderer fake;
+    ViewportController controller{project, builder, fake};
+
+    // No press first; spurious move should be ignored.
+    controller.on_mouse_move(120, 100, coupecad::viewport::MouseButton::Left);
+    EXPECT_TRUE(fake.set_camera_calls.empty());
+}
+
+TEST(ViewportControllerTest, MouseReleaseClearsDragState) {
+    Project project = Project::create_empty("vc7");
+    GeometryBuilder builder{project};
+    FakeRenderer fake;
+    ViewportController controller{project, builder, fake};
+
+    controller.on_mouse_press(100, 100, coupecad::viewport::MouseButton::Left);
+    controller.on_mouse_release(100, 100, coupecad::viewport::MouseButton::Left);
+    // After release, a fresh move with same button should not orbit
+    // (drag is no longer active).
+    fake.set_camera_calls.clear();
+    controller.on_mouse_move(150, 100, coupecad::viewport::MouseButton::Left);
+    EXPECT_TRUE(fake.set_camera_calls.empty());
+}
