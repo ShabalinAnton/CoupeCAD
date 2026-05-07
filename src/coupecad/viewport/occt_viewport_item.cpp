@@ -18,6 +18,15 @@ namespace coupecad::viewport {
 
 namespace {
 
+MouseButton qt_button_to_mouse_button(Qt::MouseButton b) {
+    switch (b) {
+        case Qt::LeftButton:   return MouseButton::Left;
+        case Qt::MiddleButton: return MouseButton::Middle;
+        case Qt::RightButton:  return MouseButton::Right;
+        default:               return MouseButton::None;
+    }
+}
+
 class OcctFboRenderer : public QQuickFramebufferObject::Renderer {
 public:
     explicit OcctFboRenderer(ViewportController* controller)
@@ -139,10 +148,67 @@ int OcctViewportItem::selection_count() const {
         : static_cast<int>(controller_->selection_count());
 }
 
-void OcctViewportItem::mousePressEvent(QMouseEvent*)   { /* Task 13 */ }
-void OcctViewportItem::mouseMoveEvent(QMouseEvent*)    { /* Task 13 */ }
-void OcctViewportItem::mouseReleaseEvent(QMouseEvent*) { /* Task 13 */ }
-void OcctViewportItem::wheelEvent(QWheelEvent*)        { /* Task 13 */ }
-void OcctViewportItem::keyPressEvent(QKeyEvent*)       { /* Task 13 */ }
+void OcctViewportItem::mousePressEvent(QMouseEvent* e) {
+    if (controller_ == nullptr) return;
+    forceActiveFocus();
+    const int x = static_cast<int>(e->position().x());
+    const int y = static_cast<int>(e->position().y());
+    const int prev = static_cast<int>(controller_->selection_count());
+    controller_->on_mouse_press(x, y, qt_button_to_mouse_button(e->button()));
+    e->accept();
+    update();
+    if (static_cast<int>(controller_->selection_count()) != prev) {
+        emit selectionChanged();
+    }
+}
+
+void OcctViewportItem::mouseMoveEvent(QMouseEvent* e) {
+    if (controller_ == nullptr) return;
+    const int x = static_cast<int>(e->position().x());
+    const int y = static_cast<int>(e->position().y());
+    // Determine which button is held (Qt mouse-move doesn't carry e->button()
+    // reliably; use buttons()).
+    MouseButton btn = MouseButton::None;
+    if (e->buttons() & Qt::LeftButton)        btn = MouseButton::Left;
+    else if (e->buttons() & Qt::MiddleButton) btn = MouseButton::Middle;
+    else if (e->buttons() & Qt::RightButton)  btn = MouseButton::Right;
+    controller_->on_mouse_move(x, y, btn);
+    e->accept();
+    if (controller_->dirty()) update();
+}
+
+void OcctViewportItem::mouseReleaseEvent(QMouseEvent* e) {
+    if (controller_ == nullptr) return;
+    const int x = static_cast<int>(e->position().x());
+    const int y = static_cast<int>(e->position().y());
+    const int prev = static_cast<int>(controller_->selection_count());
+    controller_->on_mouse_release(x, y, qt_button_to_mouse_button(e->button()));
+    e->accept();
+    update();
+    if (static_cast<int>(controller_->selection_count()) != prev) {
+        emit selectionChanged();
+    }
+}
+
+void OcctViewportItem::wheelEvent(QWheelEvent* e) {
+    if (controller_ == nullptr) return;
+    const int x = static_cast<int>(e->position().x());
+    const int y = static_cast<int>(e->position().y());
+    const double steps = e->angleDelta().y() / 120.0;
+    controller_->on_wheel(x, y, steps);
+    e->accept();
+    update();
+}
+
+void OcctViewportItem::keyPressEvent(QKeyEvent* e) {
+    if (controller_ == nullptr) return;
+    if (e->key() == Qt::Key_F) {
+        controller_->fit_all();
+        e->accept();
+        update();
+        return;
+    }
+    e->ignore();
+}
 
 }  // namespace coupecad::viewport
