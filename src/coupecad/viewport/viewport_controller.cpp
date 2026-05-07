@@ -1,0 +1,53 @@
+#include "coupecad/viewport/viewport_controller.h"
+
+#include "coupecad/geometry/geometry_builder.h"
+#include "coupecad/logging/logger.h"
+
+namespace coupecad::viewport {
+
+ViewportController::ViewportController(core::Project& project,
+                                       geometry::GeometryBuilder& builder,
+                                       renderer::IRenderer& renderer_in)
+    : project_(project), builder_(builder), renderer_(renderer_in) {
+    coupecad::logging::Logger::instance().info(
+        "viewport", "ViewportController constructed");
+}
+
+ViewportController::~ViewportController() = default;
+
+void ViewportController::on_changed(const core::Project&,
+                                    const core::ChangeSet&) {
+    // Full impl in Task 6.
+}
+
+void ViewportController::rebuild_from_scratch() {
+    // Full impl in Task 6.
+}
+
+void ViewportController::on_mouse_press(int, int, MouseButton)   {}
+void ViewportController::on_mouse_move(int, int, MouseButton)    {}
+void ViewportController::on_mouse_release(int, int, MouseButton) {}
+void ViewportController::on_wheel(int, int, double)              {}
+void ViewportController::fit_all()                                {}
+
+renderer::CameraState ViewportController::camera() const {
+    return renderer_.camera();
+}
+
+std::vector<renderer::EntityId> ViewportController::selection() const {
+    return renderer_.selection();
+}
+
+bool ViewportController::selection_empty() const {
+    return renderer_.selection().empty();
+}
+
+std::size_t ViewportController::selection_count() const {
+    return renderer_.selection().size();
+}
+
+void ViewportController::set_viewport_size(int /*w*/, int /*h*/) {
+    // Full impl in Task 7.
+}
+
+}  // namespace coupecad::viewport
