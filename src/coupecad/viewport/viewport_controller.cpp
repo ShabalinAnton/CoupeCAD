@@ -16,12 +16,20 @@ ViewportController::ViewportController(core::Project& project,
 ViewportController::~ViewportController() = default;
 
 void ViewportController::on_changed(const core::Project&,
-                                    const core::ChangeSet&) {
-    // Full impl in Task 6.
+                                    const core::ChangeSet& cs) {
+    if (cs.empty()) return;
+    builder_.apply_changes(cs);
+    renderer_.sync(cs);
+    dirty_ = true;
 }
 
 void ViewportController::rebuild_from_scratch() {
-    // Full impl in Task 6.
+    coupecad::logging::Logger::instance().info(
+        "viewport", "rebuild_from_scratch");
+    builder_.rebuild_all();
+    renderer_.rebuild_all();
+    renderer_.fit_all();
+    dirty_ = true;
 }
 
 void ViewportController::on_mouse_press(int, int, MouseButton)   {}
