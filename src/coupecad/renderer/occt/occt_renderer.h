@@ -3,6 +3,7 @@
 #include "coupecad/renderer/i_renderer.h"
 #include "coupecad/renderer/occt/ais_scene.h"
 #include "coupecad/renderer/occt/view_driver.h"
+#include "coupecad/renderer/occt/i_occt_gl_backend.h"
 
 #include <memory>
 
@@ -11,7 +12,7 @@ namespace coupecad::geometry { class GeometryBuilder; }
 
 namespace coupecad::renderer::occt {
 
-class OcctRenderer : public IRenderer {
+class OcctRenderer : public IRenderer, public IOcctGlBackend {
 public:
     OcctRenderer(const core::Project& project,
                  geometry::GeometryBuilder& builder);
@@ -39,6 +40,11 @@ public:
     ViewportSize   viewport_size() const override;
 
     std::vector<std::uint8_t> render_to_image() override;
+
+    // IOcctGlBackend.
+    void attach_external_gl_driver(
+        const Handle(OpenGl_GraphicDriver)& driver) override;
+    void render_into_current_context() override;
 
     // Test inspectors (not part of IRenderer).
     const AisScene&   scene() const noexcept { return scene_; }

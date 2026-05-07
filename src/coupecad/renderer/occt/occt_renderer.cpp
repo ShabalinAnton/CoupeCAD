@@ -178,6 +178,19 @@ std::vector<std::uint8_t> OcctRenderer::render_to_image() {
     return out;
 }
 
+void OcctRenderer::attach_external_gl_driver(
+    const Handle(OpenGl_GraphicDriver)& /*driver*/) {
+    throw core::DomainError{
+        "renderer.gl_unavailable",
+        "OcctRenderer::attach_external_gl_driver не реализовано (Task 4)"};
+}
+
+void OcctRenderer::render_into_current_context() {
+    throw core::DomainError{
+        "renderer.gl_unavailable",
+        "OcctRenderer::render_into_current_context не реализовано (Task 4)"};
+}
+
 std::unique_ptr<IRenderer> make_occt_renderer(const core::Project& project,
                                               geometry::GeometryBuilder& builder) {
     return std::make_unique<OcctRenderer>(project, builder);
