@@ -2,6 +2,7 @@ find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Quick OpenGL)
 
 add_library(coupecad_viewport STATIC
     viewport_controller.cpp
+    occt_viewport_item.cpp
 )
 
 target_include_directories(coupecad_viewport PUBLIC ${CMAKE_SOURCE_DIR}/src)

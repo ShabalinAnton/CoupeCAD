@@ -32,3 +32,33 @@ endif()
 
 include(GoogleTest)
 gtest_discover_tests(coupecad_viewport_test)
+
+# QML smoke test — separate target so a failing QML setup doesn't take
+# down the controller tests.
+find_package(Qt6 6.5 REQUIRED COMPONENTS Qml Quick)
+
+add_executable(coupecad_viewport_qml_smoke_test
+    viewport_qml_smoke_test.cpp
+)
+
+target_link_libraries(coupecad_viewport_qml_smoke_test
+    PRIVATE
+        coupecad_viewport
+        Qt6::Qml
+        Qt6::Quick
+        GTest::gtest
+        GTest::gtest_main
+)
+
+# Apply the same gtest-include-order workaround as the controller-test target.
+if(_gtest_inc)
+    target_include_directories(coupecad_viewport_qml_smoke_test
+        BEFORE PRIVATE ${_gtest_inc})
+endif()
+
+set_target_properties(coupecad_viewport_qml_smoke_test PROPERTIES AUTOMOC ON)
+
+gtest_discover_tests(coupecad_viewport_qml_smoke_test
+    PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+)
