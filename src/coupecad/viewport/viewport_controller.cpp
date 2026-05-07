@@ -54,8 +54,9 @@ std::size_t ViewportController::selection_count() const {
     return renderer_.selection().size();
 }
 
-void ViewportController::set_viewport_size(int /*w*/, int /*h*/) {
-    // Full impl in Task 7.
+void ViewportController::set_viewport_size(int width, int height) {
+    renderer_.set_viewport_size(coupecad::renderer::ViewportSize{width, height});
+    dirty_ = true;
 }
 
 }  // namespace coupecad::viewport

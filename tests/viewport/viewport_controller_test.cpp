@@ -39,3 +39,15 @@ TEST(ViewportControllerTest, SelectionEmptyOnNewController) {
     EXPECT_TRUE(controller.selection_empty());
     EXPECT_EQ(controller.selection_count(), 0u);
 }
+
+TEST(ViewportControllerTest, SetViewportSizeForwardsToRenderer) {
+    Project project = Project::create_empty("vc4");
+    GeometryBuilder builder{project};
+    FakeRenderer fake;
+    ViewportController controller{project, builder, fake};
+
+    controller.set_viewport_size(1920, 1080);
+    EXPECT_EQ(fake.last_set_viewport.width, 1920);
+    EXPECT_EQ(fake.last_set_viewport.height, 1080);
+    EXPECT_TRUE(controller.dirty());
+}
