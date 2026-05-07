@@ -2,6 +2,7 @@ add_executable(coupecad_viewport_test
     viewport_controller_test.cpp
     viewport_controller_observer_test.cpp
     viewport_controller_camera_test.cpp
+    viewport_controller_pick_test.cpp
 )
 
 target_link_libraries(coupecad_viewport_test

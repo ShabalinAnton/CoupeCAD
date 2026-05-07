@@ -149,10 +149,17 @@ void ViewportController::on_mouse_move(int x, int y, MouseButton btn) {
 }
 
 void ViewportController::on_mouse_release(int x, int y, MouseButton btn) {
-    // Pick-on-click logic comes in Task 10.
-    (void)x;
-    (void)y;
-    (void)btn;
+    constexpr int kPickDragThreshold = 5;  // pixels
+
+    if (btn == MouseButton::Right && active_drag_ == MouseButton::Right &&
+        drag_total_dx_ + drag_total_dy_ < kPickDragThreshold) {
+        renderer_.clear_selection();
+        if (auto hit = renderer_.pick(x, y)) {
+            renderer_.select(*hit);
+        }
+        dirty_ = true;
+    }
+
     active_drag_ = MouseButton::None;
 }
 
