@@ -62,6 +62,28 @@ ViewDriver::ViewDriver() {
         "renderer", "ViewDriver constructed (gl_available={})", gl_available_);
 }
 
+ViewDriver::ViewDriver(const Handle(OpenGl_GraphicDriver)& external_driver) {
+    driver_ = external_driver;
+    gl_available_ = !driver_.IsNull();
+
+    viewer_ = new V3d_Viewer(driver_);
+    viewer_->SetDefaultLights();
+    viewer_->SetLightOn();
+
+    view_ = viewer_->CreateView();
+
+    window_ = new Aspect_NeutralWindow();
+    window_->SetSize(static_cast<Standard_Integer>(width_),
+                     static_cast<Standard_Integer>(height_));
+    view_->SetWindow(window_);
+
+    view_->SetUp(0.0, 0.0, 1.0);
+
+    coupecad::logging::Logger::instance().info(
+        "renderer", "ViewDriver constructed (external driver, gl_available={})",
+        gl_available_);
+}
+
 ViewDriver::~ViewDriver() = default;
 
 void ViewDriver::set_viewport_size(int width, int height) {

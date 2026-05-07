@@ -19,6 +19,9 @@ namespace coupecad::renderer::occt {
 class ViewDriver {
 public:
     ViewDriver();
+    // Использовать внешний (Qt-managed) GL-driver. Skip headless-fallback;
+    // gl_available_ всегда true. Для Qt Quick FBO интеграции (Stage 4a §3.6).
+    explicit ViewDriver(const Handle(OpenGl_GraphicDriver)& external_driver);
     ~ViewDriver();
 
     ViewDriver(const ViewDriver&) = delete;
