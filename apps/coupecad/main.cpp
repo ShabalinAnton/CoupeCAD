@@ -4,6 +4,9 @@
 #include "coupecad/core/undo_stack.h"
 #include "coupecad/geometry/geometry_builder.h"
 #include "coupecad/renderer/occt/occt_renderer.h"
+#include "coupecad/ui/cabinet_properties_proxy.h"
+#include "coupecad/ui/panel_properties_proxy.h"
+#include "coupecad/ui/undo_stack_proxy.h"
 #include "coupecad/viewport/occt_viewport_item.h"
 #include "coupecad/viewport/viewport_controller.h"
 
@@ -44,13 +47,25 @@ int main(int argc, char* argv[]) {
         *project, *builder, *renderer);
     undo->add_observer(controller.get());
 
-    // Register OcctViewportItem before loading QML.
+    auto cabinet_props = std::make_unique<coupecad::ui::CabinetPropertiesProxy>(
+        *project, *undo, *controller);
+    auto panel_props = std::make_unique<coupecad::ui::PanelPropertiesProxy>(
+        *project, *undo, *controller);
+    auto undo_proxy = std::make_unique<coupecad::ui::UndoStackProxy>(*undo);
+
     qmlRegisterType<coupecad::viewport::OcctViewportItem>(
         "coupecad", 1, 0, "OcctViewportItem");
 
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(
         "viewportController", QVariant::fromValue(controller.get()));
+    engine.rootContext()->setContextProperty(
+        "cabinetProperties",  QVariant::fromValue(cabinet_props.get()));
+    engine.rootContext()->setContextProperty(
+        "panelProperties",    QVariant::fromValue(panel_props.get()));
+    engine.rootContext()->setContextProperty(
+        "undoStack",          QVariant::fromValue(undo_proxy.get()));
+
     QObject::connect(
         &engine,
         &QQmlApplicationEngine::objectCreationFailed,
