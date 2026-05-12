@@ -10,8 +10,9 @@ namespace coupecad::viewport {
 
 ViewportController::ViewportController(core::Project& project,
                                        geometry::GeometryBuilder& builder,
-                                       renderer::IRenderer& renderer_in)
-    : project_(project), builder_(builder), renderer_(renderer_in) {
+                                       renderer::IRenderer& renderer_in,
+                                       QObject* parent)
+    : QObject(parent), project_(project), builder_(builder), renderer_(renderer_in) {
     coupecad::logging::Logger::instance().info(
         "viewport", "ViewportController constructed");
 }

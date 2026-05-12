@@ -5,6 +5,9 @@
 #include "coupecad/renderer/entity_id.h"
 #include "coupecad/renderer/i_renderer.h"
 
+#include <QObject>
+#include <QString>
+
 #include <vector>
 
 namespace coupecad::geometry { class GeometryBuilder; }
@@ -20,11 +23,13 @@ enum class MouseButton { None, Left, Middle, Right };
 //
 // Не thread-safe. Все вызовы — из UI-потока. QFBO Renderer общается
 // с контроллером ТОЛЬКО через synchronize() (QSG блокирующая точка).
-class ViewportController : public core::IProjectObserver {
+class ViewportController : public QObject, public core::IProjectObserver {
+    Q_OBJECT
 public:
     ViewportController(core::Project& project,
                        geometry::GeometryBuilder& builder,
-                       renderer::IRenderer& renderer);
+                       renderer::IRenderer& renderer,
+                       QObject* parent = nullptr);
     ~ViewportController() override;
 
     ViewportController(const ViewportController&) = delete;
@@ -59,6 +64,11 @@ public:
 
     // Test inspector.
     renderer::IRenderer& renderer() noexcept { return renderer_; }
+
+signals:
+    void selectionChanged();
+    void cabinetChanged();
+    void panelChanged(const QString& panel_id_str);
 
 private:
     core::Project&             project_;
