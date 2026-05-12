@@ -130,7 +130,16 @@ OcctViewportItem::OcctViewportItem(QQuickItem* parent)
 OcctViewportItem::~OcctViewportItem() = default;
 
 void OcctViewportItem::set_controller(ViewportController* c) {
+    if (controller_ == c) return;
+    if (controller_ != nullptr) {
+        QObject::disconnect(controller_, &ViewportController::selectionChanged,
+                            this,        &OcctViewportItem::selectionChanged);
+    }
     controller_ = c;
+    if (controller_ != nullptr) {
+        QObject::connect(controller_, &ViewportController::selectionChanged,
+                         this,        &OcctViewportItem::selectionChanged);
+    }
     update();
 }
 
@@ -153,13 +162,9 @@ void OcctViewportItem::mousePressEvent(QMouseEvent* e) {
     forceActiveFocus();
     const int x = static_cast<int>(e->position().x());
     const int y = static_cast<int>(e->position().y());
-    const int prev = static_cast<int>(controller_->selection_count());
     controller_->on_mouse_press(x, y, qt_button_to_mouse_button(e->button()));
     e->accept();
     update();
-    if (static_cast<int>(controller_->selection_count()) != prev) {
-        emit selectionChanged();
-    }
 }
 
 void OcctViewportItem::mouseMoveEvent(QMouseEvent* e) {
@@ -181,13 +186,9 @@ void OcctViewportItem::mouseReleaseEvent(QMouseEvent* e) {
     if (controller_ == nullptr) return;
     const int x = static_cast<int>(e->position().x());
     const int y = static_cast<int>(e->position().y());
-    const int prev = static_cast<int>(controller_->selection_count());
     controller_->on_mouse_release(x, y, qt_button_to_mouse_button(e->button()));
     e->accept();
     update();
-    if (static_cast<int>(controller_->selection_count()) != prev) {
-        emit selectionChanged();
-    }
 }
 
 void OcctViewportItem::wheelEvent(QWheelEvent* e) {

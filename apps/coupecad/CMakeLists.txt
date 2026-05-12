@@ -10,6 +10,8 @@ qt_add_qml_module(coupecad
     VERSION 1.0
     QML_FILES
         qml/Main.qml
+        qml/CabinetPropertiesPanel.qml
+        qml/PanelPropertiesPanel.qml
 )
 
 target_link_libraries(coupecad
@@ -19,6 +21,7 @@ target_link_libraries(coupecad
         Qt6::Qml
         Qt6::Quick
         coupecad_viewport
+        coupecad_ui
 )
 
 set_target_properties(coupecad PROPERTIES

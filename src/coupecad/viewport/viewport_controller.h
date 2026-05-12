@@ -5,6 +5,9 @@
 #include "coupecad/renderer/entity_id.h"
 #include "coupecad/renderer/i_renderer.h"
 
+#include <QObject>
+#include <QString>
+
 #include <vector>
 
 namespace coupecad::geometry { class GeometryBuilder; }
@@ -20,11 +23,13 @@ enum class MouseButton { None, Left, Middle, Right };
 //
 // Не thread-safe. Все вызовы — из UI-потока. QFBO Renderer общается
 // с контроллером ТОЛЬКО через synchronize() (QSG блокирующая точка).
-class ViewportController : public core::IProjectObserver {
+class ViewportController : public QObject, public core::IProjectObserver {
+    Q_OBJECT
 public:
     ViewportController(core::Project& project,
                        geometry::GeometryBuilder& builder,
-                       renderer::IRenderer& renderer);
+                       renderer::IRenderer& renderer,
+                       QObject* parent = nullptr);
     ~ViewportController() override;
 
     ViewportController(const ViewportController&) = delete;
@@ -60,6 +65,11 @@ public:
     // Test inspector.
     renderer::IRenderer& renderer() noexcept { return renderer_; }
 
+signals:
+    void selectionChanged();
+    void cabinetChanged();
+    void panelChanged(const QString& panel_id_str);
+
 private:
     core::Project&             project_;
     geometry::GeometryBuilder& builder_;
@@ -71,6 +81,17 @@ private:
     int         drag_last_y_ = 0;
     int         drag_total_dx_ = 0;
     int         drag_total_dy_ = 0;
+
+    // Sub-mm accumulators for pan/orbit/zoom. Each emit-camera step
+    // rounds the desired double-precision target to int32 mm, then
+    // stashes the fractional remainder here for the next step. Reset
+    // by fit_all() (any external camera reset).
+    double eye_carry_x_    = 0.0;
+    double eye_carry_y_    = 0.0;
+    double eye_carry_z_    = 0.0;
+    double target_carry_x_ = 0.0;
+    double target_carry_y_ = 0.0;
+    double target_carry_z_ = 0.0;
 };
 
 }  // namespace coupecad::viewport

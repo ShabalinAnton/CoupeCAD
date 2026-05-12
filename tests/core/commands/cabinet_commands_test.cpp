@@ -99,3 +99,41 @@ TEST(SetCabinetDefaults, UnknownMaterialThrowsOnApply) {
                             Millimeters{4}};
     EXPECT_THROW(cmd.apply(p), DomainError);
 }
+
+TEST(SetCabinetNameTest, AppliesAndStoresPreviousName) {
+    Project project = Project::create_empty("Initial");
+    SetCabinetName cmd{project.cabinet().id, "Renamed"};
+    auto cs = cmd.apply(project);
+    EXPECT_EQ(project.cabinet().name, "Renamed");
+    EXPECT_TRUE(cs.cabinet_changed);
+}
+
+TEST(SetCabinetNameTest, RevertRestoresName) {
+    Project project = Project::create_empty("Initial");
+    const std::string original_name = project.cabinet().name;
+    SetCabinetName cmd{project.cabinet().id, "Renamed"};
+    cmd.apply(project);
+    cmd.revert(project);
+    EXPECT_EQ(project.cabinet().name, original_name);
+}
+
+TEST(SetCabinetNameTest, RejectsEmptyName) {
+    try {
+        SetCabinetName cmd{CabinetId{}, ""};
+        FAIL() << "expected DomainError";
+    } catch (const DomainError& e) {
+        EXPECT_EQ(e.code(), "cabinet.empty_name");
+    }
+}
+
+TEST(SetCabinetNameTest, WrongIdThrows) {
+    Project project = Project::create_empty("Initial");
+    SetCabinetName cmd{CabinetId::from_string("00000000-0000-0000-0000-000000000099"),
+                       "Renamed"};
+    try {
+        cmd.apply(project);
+        FAIL() << "expected DomainError";
+    } catch (const DomainError& e) {
+        EXPECT_EQ(e.code(), "cabinet.wrong_id");
+    }
+}

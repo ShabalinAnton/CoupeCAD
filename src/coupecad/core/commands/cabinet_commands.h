@@ -4,6 +4,8 @@
 #include "coupecad/core/id.h"
 #include "coupecad/core/units.h"
 
+#include <string>
+
 namespace coupecad::core {
 
 // Изменить габариты шкафа. Preview-совместимая.
@@ -45,6 +47,23 @@ private:
     MaterialId old_material_{};
     Millimeters old_panel_thickness_{};
     Millimeters old_back_thickness_{};
+    bool applied_ = false;
+};
+
+// Переименование шкафа. Discrete.
+class SetCabinetName : public Command {
+public:
+    SetCabinetName(CabinetId target, std::string new_name);
+
+    ChangeSet apply(Project& project) override;
+    ChangeSet revert(Project& project) override;
+    std::string_view label() const noexcept override { return "Set cabinet name"; }
+    CommandKind kind() const noexcept override { return CommandKind::SetCabinetName; }
+
+private:
+    CabinetId target_;
+    std::string new_name_;
+    std::string old_name_;
     bool applied_ = false;
 };
 

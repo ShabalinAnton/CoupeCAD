@@ -10,8 +10,9 @@ namespace coupecad::viewport {
 
 ViewportController::ViewportController(core::Project& project,
                                        geometry::GeometryBuilder& builder,
-                                       renderer::IRenderer& renderer_in)
-    : project_(project), builder_(builder), renderer_(renderer_in) {
+                                       renderer::IRenderer& renderer_in,
+                                       QObject* parent)
+    : QObject(parent), project_(project), builder_(builder), renderer_(renderer_in) {
     coupecad::logging::Logger::instance().info(
         "viewport", "ViewportController constructed");
 }
@@ -24,6 +25,20 @@ void ViewportController::on_changed(const core::Project&,
     builder_.apply_changes(cs);
     renderer_.sync(cs);
     dirty_ = true;
+
+    if (cs.cabinet_changed) {
+        emit cabinetChanged();
+    }
+    for (const auto& id : cs.updated_panels) {
+        emit panelChanged(QString::fromStdString(id.to_string()));
+    }
+
+    // Removed panels/hardware may have been in the selection set. AIS
+    // drops them automatically (Stage 3 §5), so we only signal the
+    // delta if anything was removed.
+    if (!cs.removed_panels.empty() || !cs.removed_hardware.empty()) {
+        emit selectionChanged();
+    }
 }
 
 void ViewportController::rebuild_from_scratch() {
@@ -85,10 +100,20 @@ void ViewportController::on_mouse_move(int x, int y, MouseButton btn) {
         const double new_ey = dist * cos_el * std::sin(new_az);
         const double new_ez = dist * std::sin(new_el);
 
+        const double new_eye_x_d = tx + new_ex + eye_carry_x_;
+        const double new_eye_y_d = ty + new_ey + eye_carry_y_;
+        const double new_eye_z_d = tz + new_ez + eye_carry_z_;
+        const std::int32_t new_eye_x = static_cast<std::int32_t>(std::lround(new_eye_x_d));
+        const std::int32_t new_eye_y = static_cast<std::int32_t>(std::lround(new_eye_y_d));
+        const std::int32_t new_eye_z = static_cast<std::int32_t>(std::lround(new_eye_z_d));
+        eye_carry_x_ = new_eye_x_d - static_cast<double>(new_eye_x);
+        eye_carry_y_ = new_eye_y_d - static_cast<double>(new_eye_y);
+        eye_carry_z_ = new_eye_z_d - static_cast<double>(new_eye_z);
+
         s.eye = core::Vec3{
-            core::Millimeters{static_cast<std::int32_t>(tx + new_ex)},
-            core::Millimeters{static_cast<std::int32_t>(ty + new_ey)},
-            core::Millimeters{static_cast<std::int32_t>(tz + new_ez)}};
+            core::Millimeters{new_eye_x},
+            core::Millimeters{new_eye_y},
+            core::Millimeters{new_eye_z}};
         renderer_.set_camera(s);
         dirty_ = true;
         return;
@@ -131,14 +156,35 @@ void ViewportController::on_mouse_move(int x, int y, MouseButton btn) {
         const double world_dy = ryn * pan_x_mm + upy * pan_y_mm;
         const double world_dz = rzn * pan_x_mm + upz * pan_y_mm;
 
+        const double new_eye_x_d    = static_cast<double>(s.eye.x.value())    + world_dx + eye_carry_x_;
+        const double new_eye_y_d    = static_cast<double>(s.eye.y.value())    + world_dy + eye_carry_y_;
+        const double new_eye_z_d    = static_cast<double>(s.eye.z.value())    + world_dz + eye_carry_z_;
+        const double new_target_x_d = static_cast<double>(s.target.x.value()) + world_dx + target_carry_x_;
+        const double new_target_y_d = static_cast<double>(s.target.y.value()) + world_dy + target_carry_y_;
+        const double new_target_z_d = static_cast<double>(s.target.z.value()) + world_dz + target_carry_z_;
+
+        const std::int32_t new_eye_x    = static_cast<std::int32_t>(std::lround(new_eye_x_d));
+        const std::int32_t new_eye_y    = static_cast<std::int32_t>(std::lround(new_eye_y_d));
+        const std::int32_t new_eye_z    = static_cast<std::int32_t>(std::lround(new_eye_z_d));
+        const std::int32_t new_target_x = static_cast<std::int32_t>(std::lround(new_target_x_d));
+        const std::int32_t new_target_y = static_cast<std::int32_t>(std::lround(new_target_y_d));
+        const std::int32_t new_target_z = static_cast<std::int32_t>(std::lround(new_target_z_d));
+
+        eye_carry_x_ = new_eye_x_d - static_cast<double>(new_eye_x);
+        eye_carry_y_ = new_eye_y_d - static_cast<double>(new_eye_y);
+        eye_carry_z_ = new_eye_z_d - static_cast<double>(new_eye_z);
+        target_carry_x_ = new_target_x_d - static_cast<double>(new_target_x);
+        target_carry_y_ = new_target_y_d - static_cast<double>(new_target_y);
+        target_carry_z_ = new_target_z_d - static_cast<double>(new_target_z);
+
         s.eye = core::Vec3{
-            core::Millimeters{s.eye.x.value() + static_cast<std::int32_t>(world_dx)},
-            core::Millimeters{s.eye.y.value() + static_cast<std::int32_t>(world_dy)},
-            core::Millimeters{s.eye.z.value() + static_cast<std::int32_t>(world_dz)}};
+            core::Millimeters{new_eye_x},
+            core::Millimeters{new_eye_y},
+            core::Millimeters{new_eye_z}};
         s.target = core::Vec3{
-            core::Millimeters{s.target.x.value() + static_cast<std::int32_t>(world_dx)},
-            core::Millimeters{s.target.y.value() + static_cast<std::int32_t>(world_dy)},
-            core::Millimeters{s.target.z.value() + static_cast<std::int32_t>(world_dz)}};
+            core::Millimeters{new_target_x},
+            core::Millimeters{new_target_y},
+            core::Millimeters{new_target_z}};
         renderer_.set_camera(s);
         dirty_ = true;
         return;
@@ -151,16 +197,25 @@ void ViewportController::on_mouse_move(int x, int y, MouseButton btn) {
 void ViewportController::on_mouse_release(int x, int y, MouseButton btn) {
     constexpr int kPickDragThreshold = 5;  // pixels
 
+    bool selection_did_change = false;
+
     if (btn == MouseButton::Right && active_drag_ == MouseButton::Right &&
         drag_total_dx_ + drag_total_dy_ < kPickDragThreshold) {
+        const std::size_t prev = renderer_.selection().size();
         renderer_.clear_selection();
         if (auto hit = renderer_.pick(x, y)) {
             renderer_.select(*hit);
         }
         dirty_ = true;
+        selection_did_change = (renderer_.selection().size() != prev) ||
+                               (prev != 0);  // clear-then-no-hit also "changes"
     }
 
     active_drag_ = MouseButton::None;
+
+    if (selection_did_change) {
+        emit selectionChanged();
+    }
 }
 
 void ViewportController::on_wheel(int /*x*/, int /*y*/, double delta_steps) {
@@ -175,16 +230,30 @@ void ViewportController::on_wheel(int /*x*/, int /*y*/, double delta_steps) {
     const double ey = static_cast<double>(s.eye.y.value()) - ty;
     const double ez = static_cast<double>(s.eye.z.value()) - tz;
 
+    const double new_eye_x_d = tx + ex * factor + eye_carry_x_;
+    const double new_eye_y_d = ty + ey * factor + eye_carry_y_;
+    const double new_eye_z_d = tz + ez * factor + eye_carry_z_;
+
+    const std::int32_t new_eye_x = static_cast<std::int32_t>(std::lround(new_eye_x_d));
+    const std::int32_t new_eye_y = static_cast<std::int32_t>(std::lround(new_eye_y_d));
+    const std::int32_t new_eye_z = static_cast<std::int32_t>(std::lround(new_eye_z_d));
+
+    eye_carry_x_ = new_eye_x_d - static_cast<double>(new_eye_x);
+    eye_carry_y_ = new_eye_y_d - static_cast<double>(new_eye_y);
+    eye_carry_z_ = new_eye_z_d - static_cast<double>(new_eye_z);
+
     s.eye = core::Vec3{
-        core::Millimeters{static_cast<std::int32_t>(tx + ex * factor)},
-        core::Millimeters{static_cast<std::int32_t>(ty + ey * factor)},
-        core::Millimeters{static_cast<std::int32_t>(tz + ez * factor)}};
+        core::Millimeters{new_eye_x},
+        core::Millimeters{new_eye_y},
+        core::Millimeters{new_eye_z}};
 
     renderer_.set_camera(s);
     dirty_ = true;
 }
 
 void ViewportController::fit_all() {
+    eye_carry_x_ = eye_carry_y_ = eye_carry_z_ = 0.0;
+    target_carry_x_ = target_carry_y_ = target_carry_z_ = 0.0;
     renderer_.fit_all();
     dirty_ = true;
 }
