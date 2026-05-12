@@ -25,6 +25,20 @@ void ViewportController::on_changed(const core::Project&,
     builder_.apply_changes(cs);
     renderer_.sync(cs);
     dirty_ = true;
+
+    if (cs.cabinet_changed) {
+        emit cabinetChanged();
+    }
+    for (const auto& id : cs.updated_panels) {
+        emit panelChanged(QString::fromStdString(id.to_string()));
+    }
+
+    // Removed panels/hardware may have been in the selection set. AIS
+    // drops them automatically (Stage 3 §5), so we only signal the
+    // delta if anything was removed.
+    if (!cs.removed_panels.empty() || !cs.removed_hardware.empty()) {
+        emit selectionChanged();
+    }
 }
 
 void ViewportController::rebuild_from_scratch() {
@@ -152,16 +166,25 @@ void ViewportController::on_mouse_move(int x, int y, MouseButton btn) {
 void ViewportController::on_mouse_release(int x, int y, MouseButton btn) {
     constexpr int kPickDragThreshold = 5;  // pixels
 
+    bool selection_did_change = false;
+
     if (btn == MouseButton::Right && active_drag_ == MouseButton::Right &&
         drag_total_dx_ + drag_total_dy_ < kPickDragThreshold) {
+        const std::size_t prev = renderer_.selection().size();
         renderer_.clear_selection();
         if (auto hit = renderer_.pick(x, y)) {
             renderer_.select(*hit);
         }
         dirty_ = true;
+        selection_did_change = (renderer_.selection().size() != prev) ||
+                               (prev != 0);  // clear-then-no-hit also "changes"
     }
 
     active_drag_ = MouseButton::None;
+
+    if (selection_did_change) {
+        emit selectionChanged();
+    }
 }
 
 void ViewportController::on_wheel(int /*x*/, int /*y*/, double delta_steps) {
