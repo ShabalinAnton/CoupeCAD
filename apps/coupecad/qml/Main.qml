@@ -49,7 +49,7 @@ Window {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     sourceComponent: panelProperties.hasPanel
-                                     ? panelInspectorPlaceholder
+                                     ? panelInspector
                                      : cabinetInspector
                 }
 
@@ -58,13 +58,8 @@ Window {
                     CabinetPropertiesPanel { proxy: cabinetProperties }
                 }
                 Component {
-                    id: panelInspectorPlaceholder
-                    Label {
-                        text: qsTr("Panel inspector (Task 14)")
-                        color: "gray"
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                    }
+                    id: panelInspector
+                    PanelPropertiesPanel { proxy: panelProperties }
                 }
             }
         }
