@@ -1,5 +1,7 @@
 #include "coupecad/renderer/occt/view_driver.h"
 
+#include <Aspect_DisplayConnection.hxx>
+#include <OpenGl_GraphicDriver.hxx>
 #include <gtest/gtest.h>
 
 namespace {
@@ -36,5 +38,16 @@ TEST(ViewDriverTest, SetViewportSizeUpdatesNeutralWindow) {
 
 TEST(ViewDriverTest, NeutralWindowAccessibleAfterConstruction) {
     ViewDriver driver;
+    EXPECT_FALSE(driver.window().IsNull());
+}
+
+TEST(ViewDriverTest, ExternalDriverCtorMarksGlAvailable) {
+    Handle(Aspect_DisplayConnection) display = new Aspect_DisplayConnection();
+    Handle(OpenGl_GraphicDriver) drv = new OpenGl_GraphicDriver(display, false);
+
+    ViewDriver driver{drv};
+    EXPECT_TRUE(driver.gl_available());
+    EXPECT_FALSE(driver.viewer().IsNull());
+    EXPECT_FALSE(driver.view().IsNull());
     EXPECT_FALSE(driver.window().IsNull());
 }

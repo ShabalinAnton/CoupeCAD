@@ -59,6 +59,12 @@ public:
     // Clear all panels + hardware from the scene (used by rebuild_all in Task 9).
     void clear();
 
+    // Rebuild AIS_InteractiveContext against driver_'s current viewer.
+    // Used after attach_external_gl_driver. Old AIS_Shape objects are
+    // released; the scene is empty afterwards (caller must repopulate
+    // via add_panel / add_hardware).
+    void rebind_to_driver(ViewDriver& driver);
+
     // Selection.
     bool                    has_entity(const EntityId& id) const noexcept;
     void                    select(const EntityId& id);   // throws if unknown
