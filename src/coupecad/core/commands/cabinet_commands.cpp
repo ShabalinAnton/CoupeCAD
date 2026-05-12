@@ -116,4 +116,38 @@ ChangeSet SetCabinetDefaults::revert(Project& project) {
     return cs;
 }
 
+SetCabinetName::SetCabinetName(CabinetId target, std::string new_name)
+    : target_(target), new_name_(std::move(new_name)) {
+    if (new_name_.empty()) {
+        throw DomainError{"cabinet.empty_name",
+                          "Cabinet name must not be empty"};
+    }
+}
+
+ChangeSet SetCabinetName::apply(Project& project) {
+    auto& c = project.mutable_cabinet();
+    if (c.id != target_) {
+        throw DomainError{"cabinet.wrong_id",
+                          "SetCabinetName target mismatch"};
+    }
+    if (!applied_) old_name_ = c.name;
+    c.name = new_name_;
+    applied_ = true;
+    ChangeSet cs;
+    cs.cabinet_changed = true;
+    return cs;
+}
+
+ChangeSet SetCabinetName::revert(Project& project) {
+    auto& c = project.mutable_cabinet();
+    if (c.id != target_) {
+        throw DomainError{"cabinet.wrong_id",
+                          "SetCabinetName revert target mismatch"};
+    }
+    c.name = old_name_;
+    ChangeSet cs;
+    cs.cabinet_changed = true;
+    return cs;
+}
+
 }  // namespace coupecad::core

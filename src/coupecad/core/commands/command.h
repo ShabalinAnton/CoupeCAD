@@ -14,6 +14,7 @@ class Project;
 enum class CommandKind {
     CabinetDimensions,
     CabinetDefaults,
+    SetCabinetName,
     AddPanel,
     RemovePanel,
     UpdatePanelRoleParams,
