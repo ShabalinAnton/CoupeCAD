@@ -131,3 +131,76 @@ TEST(PanelPropertiesProxyTest, MaterialOverrideEmptyByDefault) {
     EXPECT_FALSE(f.proxy.has_material_override());
     EXPECT_EQ(f.proxy.material_override_uuid(), QString{});
 }
+
+TEST(PanelPropertiesProxyTest, SetLabelDispatchesCommand) {
+    Fixture f;
+    const auto pid = f.add_bottom_panel();
+    f.fake.select(EntityId{pid});
+    f.proxy.setLabel(QString("My label"));
+    EXPECT_EQ(f.project.cabinet().panels.at(pid).label.value_or(""),
+              std::string{"My label"});
+}
+
+TEST(PanelPropertiesProxyTest, SetLabelEmptyStringClearsLabel) {
+    Fixture f;
+    const auto pid = f.add_bottom_panel();
+    f.project.mutable_cabinet().panels.at(pid).label = std::string{"old"};
+    f.fake.select(EntityId{pid});
+    f.proxy.setLabel(QString(""));
+    EXPECT_FALSE(f.project.cabinet().panels.at(pid).label.has_value());
+}
+
+TEST(PanelPropertiesProxyTest, SetThicknessOverrideDispatches) {
+    Fixture f;
+    const auto pid = f.add_bottom_panel();
+    f.fake.select(EntityId{pid});
+    f.proxy.set_thickness_override_mm(18);
+    EXPECT_EQ(f.project.cabinet().panels.at(pid).thickness_override.value().value(), 18);
+}
+
+TEST(PanelPropertiesProxyTest, ClearThicknessOverrideDispatches) {
+    Fixture f;
+    const auto pid = f.add_bottom_panel();
+    f.project.mutable_cabinet().panels.at(pid).thickness_override = Millimeters{18};
+    f.fake.select(EntityId{pid});
+    f.proxy.clear_thickness_override();
+    EXPECT_FALSE(f.project.cabinet().panels.at(pid).thickness_override.has_value());
+}
+
+TEST(PanelPropertiesProxyTest, SetMaterialOverrideUuidParsesAndDispatches) {
+    Fixture f;
+    const auto pid = f.add_bottom_panel();
+    f.fake.select(EntityId{pid});
+    const auto& default_mat = f.project.cabinet().default_panel_material;
+    f.proxy.set_material_override_uuid(
+        QString::fromStdString(default_mat.to_string()));
+    EXPECT_TRUE(f.project.cabinet().panels.at(pid).material_override.has_value());
+    EXPECT_EQ(*f.project.cabinet().panels.at(pid).material_override, default_mat);
+}
+
+TEST(PanelPropertiesProxyTest, SetMaterialOverrideEmptyClearsOverride) {
+    Fixture f;
+    const auto pid = f.add_bottom_panel();
+    const auto& default_mat = f.project.cabinet().default_panel_material;
+    f.project.mutable_cabinet().panels.at(pid).material_override = default_mat;
+    f.fake.select(EntityId{pid});
+    f.proxy.set_material_override_uuid(QString{});
+    EXPECT_FALSE(f.project.cabinet().panels.at(pid).material_override.has_value());
+}
+
+TEST(PanelPropertiesProxyTest, ClearMaterialOverrideDispatches) {
+    Fixture f;
+    const auto pid = f.add_bottom_panel();
+    const auto& default_mat = f.project.cabinet().default_panel_material;
+    f.project.mutable_cabinet().panels.at(pid).material_override = default_mat;
+    f.fake.select(EntityId{pid});
+    f.proxy.clear_material_override();
+    EXPECT_FALSE(f.project.cabinet().panels.at(pid).material_override.has_value());
+}
+
+TEST(PanelPropertiesProxyTest, SettersAreNoOpWithoutSelection) {
+    Fixture f;
+    EXPECT_NO_THROW(f.proxy.setLabel(QString("x")));
+    EXPECT_NO_THROW(f.proxy.set_thickness_override_mm(20));
+    EXPECT_FALSE(f.undo.can_undo());
+}

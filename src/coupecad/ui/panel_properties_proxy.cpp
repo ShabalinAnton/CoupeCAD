@@ -1,10 +1,12 @@
 #include "coupecad/ui/panel_properties_proxy.h"
 
 #include "coupecad/core/cabinet.h"
+#include "coupecad/core/commands/panel_commands.h"
 #include "coupecad/core/errors.h"
 #include "coupecad/core/undo_stack.h"
 #include "coupecad/logging/logger.h"
 
+#include <memory>
 #include <variant>
 
 namespace coupecad::ui {
@@ -94,21 +96,95 @@ QString PanelPropertiesProxy::material_override_uuid() const {
     return QString::fromStdString(p->material_override->to_string());
 }
 
-// Setters stubbed; filled in Task 10.
-void PanelPropertiesProxy::setLabel(const QString&) {
-    throw core::LogicError{"ui.not_implemented_yet", "setLabel in Task 10"};
+void PanelPropertiesProxy::setLabel(const QString& value) {
+    const auto* p = current_panel();
+    if (p == nullptr) return;
+
+    std::optional<std::string> new_label;
+    if (!value.isEmpty()) new_label = value.toStdString();
+    if (new_label == p->label) return;
+
+    const auto pid = p->id;
+    try {
+        undo_.execute(std::make_unique<core::SetPanelLabel>(pid, new_label));
+    } catch (const core::DomainError& e) {
+        coupecad::logging::Logger::instance().warn(
+            "ui", "panel.label rejected: {}", e.what());
+        emit changed();
+    }
 }
-void PanelPropertiesProxy::set_thickness_override_mm(int) {
-    throw core::LogicError{"ui.not_implemented_yet", "set_thickness_override_mm in Task 10"};
+
+void PanelPropertiesProxy::set_thickness_override_mm(int mm) {
+    const auto* p = current_panel();
+    if (p == nullptr) return;
+    const auto pid = p->id;
+    const std::optional<core::Millimeters> new_value = core::Millimeters{mm};
+    if (new_value == p->thickness_override) return;
+
+    try {
+        undo_.execute(std::make_unique<core::SetPanelThickness>(pid, new_value));
+    } catch (const core::DomainError& e) {
+        coupecad::logging::Logger::instance().warn(
+            "ui", "panel.thickness rejected: {}", e.what());
+        emit changed();
+    }
 }
-void PanelPropertiesProxy::set_material_override_uuid(const QString&) {
-    throw core::LogicError{"ui.not_implemented_yet", "set_material_override_uuid in Task 10"};
-}
+
 void PanelPropertiesProxy::clear_thickness_override() {
-    throw core::LogicError{"ui.not_implemented_yet", "clear_thickness_override in Task 10"};
+    const auto* p = current_panel();
+    if (p == nullptr) return;
+    if (!p->thickness_override.has_value()) return;
+
+    const auto pid = p->id;
+    try {
+        undo_.execute(std::make_unique<core::SetPanelThickness>(pid, std::nullopt));
+    } catch (const core::DomainError& e) {
+        coupecad::logging::Logger::instance().warn(
+            "ui", "panel.thickness clear rejected: {}", e.what());
+        emit changed();
+    }
 }
+
+void PanelPropertiesProxy::set_material_override_uuid(const QString& uuid_or_empty) {
+    const auto* p = current_panel();
+    if (p == nullptr) return;
+    const auto pid = p->id;
+
+    std::optional<core::MaterialId> new_value;
+    if (!uuid_or_empty.isEmpty()) {
+        auto parsed = core::MaterialId::from_string(uuid_or_empty.toStdString());
+        if (!parsed.is_valid()) {
+            coupecad::logging::Logger::instance().warn(
+                "ui", "panel.material_override invalid UUID '{}'",
+                uuid_or_empty.toStdString());
+            emit changed();
+            return;
+        }
+        new_value = parsed;
+    }
+    if (new_value == p->material_override) return;
+
+    try {
+        undo_.execute(std::make_unique<core::SetPanelMaterial>(pid, new_value));
+    } catch (const core::DomainError& e) {
+        coupecad::logging::Logger::instance().warn(
+            "ui", "panel.material rejected: {}", e.what());
+        emit changed();
+    }
+}
+
 void PanelPropertiesProxy::clear_material_override() {
-    throw core::LogicError{"ui.not_implemented_yet", "clear_material_override in Task 10"};
+    const auto* p = current_panel();
+    if (p == nullptr) return;
+    if (!p->material_override.has_value()) return;
+    const auto pid = p->id;
+    try {
+        undo_.execute(std::make_unique<core::SetPanelMaterial>(pid, std::nullopt));
+    } catch (const core::DomainError& e) {
+        coupecad::logging::Logger::instance().warn(
+            "ui", "panel.material clear rejected: {}", e.what());
+        emit changed();
+    }
 }
 
 }  // namespace coupecad::ui
