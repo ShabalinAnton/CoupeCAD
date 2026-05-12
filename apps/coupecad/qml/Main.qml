@@ -45,15 +45,26 @@ Window {
                     font.bold: true
                 }
 
-                Label {
+                Loader {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    text: panelProperties.hasPanel
-                          ? qsTr("Panel inspector (Task 14)")
-                          : qsTr("Cabinet inspector (Task 13)")
-                    color: "gray"
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
+                    sourceComponent: panelProperties.hasPanel
+                                     ? panelInspectorPlaceholder
+                                     : cabinetInspector
+                }
+
+                Component {
+                    id: cabinetInspector
+                    CabinetPropertiesPanel { proxy: cabinetProperties }
+                }
+                Component {
+                    id: panelInspectorPlaceholder
+                    Label {
+                        text: qsTr("Panel inspector (Task 14)")
+                        color: "gray"
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
                 }
             }
         }
