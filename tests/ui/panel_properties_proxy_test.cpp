@@ -204,3 +204,24 @@ TEST(PanelPropertiesProxyTest, SettersAreNoOpWithoutSelection) {
     EXPECT_NO_THROW(f.proxy.set_thickness_override_mm(20));
     EXPECT_FALSE(f.undo.can_undo());
 }
+
+TEST(PanelPropertiesProxyTest, RoleParamsSummaryEmptyForBottomPanel) {
+    Fixture f;
+    const auto pid = f.add_bottom_panel();
+    f.fake.select(EntityId{pid});
+    EXPECT_EQ(f.proxy.role_params_summary(), QString{});
+}
+
+TEST(PanelPropertiesProxyTest, RoleParamsSummaryFormatsShelfFullWidth) {
+    Fixture f;
+    Panel p;
+    p.id = f.project.uuid_gen().next_id<PanelIdTag>();
+    p.role = PanelRole::Shelf;
+    p.role_params = coupecad::core::ShelfParams{
+        .height_from_bottom = Millimeters{800},
+        .extent = coupecad::core::ShelfFullWidth{}};
+    f.project.mutable_cabinet().panels.emplace(p.id, p);
+    f.fake.select(EntityId{p.id});
+    EXPECT_EQ(f.proxy.role_params_summary(),
+              QString("h=800 mm, full-width"));
+}

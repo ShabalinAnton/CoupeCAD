@@ -7,6 +7,7 @@
 #include "coupecad/logging/logger.h"
 
 #include <memory>
+#include <type_traits>
 #include <variant>
 
 namespace coupecad::ui {
@@ -59,8 +60,37 @@ QString PanelPropertiesProxy::role() const {
 }
 
 QString PanelPropertiesProxy::role_params_summary() const {
-    // Full visitor lands in Task 11; placeholder for now.
-    return QString{};
+    const auto* p = current_panel();
+    if (p == nullptr) return QString{};
+
+    return std::visit([](const auto& v) -> QString {
+        using T = std::decay_t<decltype(v)>;
+        if constexpr (std::is_same_v<T, core::NoRoleParams>) {
+            return QString{};
+        } else if constexpr (std::is_same_v<T, core::ShelfParams>) {
+            QString extent_str =
+                std::holds_alternative<core::ShelfFullWidth>(v.extent)
+                    ? QStringLiteral("full-width")
+                    : QStringLiteral("between dividers");
+            return QString("h=%1 mm, %2")
+                .arg(v.height_from_bottom.value())
+                .arg(extent_str);
+        } else if constexpr (std::is_same_v<T, core::DividerVerticalParams>) {
+            return QString("offset=%1 mm, %2")
+                .arg(v.offset_from_left.value())
+                .arg(std::holds_alternative<core::VerticalExtentFull>(v.height_extent)
+                         ? QStringLiteral("full height")
+                         : QStringLiteral("range"));
+        } else if constexpr (std::is_same_v<T, core::DividerHorizontalParams>) {
+            return QString("offset=%1 mm, %2")
+                .arg(v.offset_from_bottom.value())
+                .arg(std::holds_alternative<core::DepthExtentFull>(v.depth_extent)
+                         ? QStringLiteral("full depth")
+                         : QStringLiteral("range"));
+        } else {
+            return QStringLiteral("(see role-params)");
+        }
+    }, p->role_params);
 }
 
 QString PanelPropertiesProxy::label() const {
