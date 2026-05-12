@@ -3,6 +3,7 @@ find_package(Qt6 6.5 REQUIRED COMPONENTS Core)
 add_library(coupecad_ui STATIC
     undo_stack_proxy.cpp
     cabinet_properties_proxy.cpp
+    panel_properties_proxy.cpp
 )
 
 target_include_directories(coupecad_ui PUBLIC ${CMAKE_SOURCE_DIR}/src)
