@@ -46,6 +46,7 @@ struct Fixture {
 
     Fixture() {
         ensure_qapp();
+        undo.add_observer(&controller);
         auto& cab = project.mutable_cabinet();
         cab.dimensions = {Millimeters{1200}, Millimeters{600}, Millimeters{2000}};
         cab.default_panel_thickness = Millimeters{16};
@@ -72,4 +73,63 @@ TEST(CabinetPropertiesProxyTest, DefaultThicknessesReflectModel) {
     Fixture f;
     EXPECT_EQ(f.proxy.default_panel_thickness_mm(), 16);
     EXPECT_EQ(f.proxy.default_back_thickness_mm(), 4);
+}
+
+#include <QSignalSpy>
+
+TEST(CabinetPropertiesProxyTest, SetWidthMmDispatchesCommand) {
+    Fixture f;
+    f.proxy.setWidthMm(1500);
+    EXPECT_EQ(f.project.cabinet().dimensions.width.value(), 1500);
+}
+
+TEST(CabinetPropertiesProxyTest, SetWidthMmFiresChangedSignal) {
+    Fixture f;
+    QSignalSpy spy(&f.proxy, &CabinetPropertiesProxy::changed);
+    f.proxy.setWidthMm(1500);
+    EXPECT_GE(spy.count(), 1);
+}
+
+TEST(CabinetPropertiesProxyTest, SetWidthMmRejectsNonPositive) {
+    Fixture f;
+    EXPECT_NO_THROW(f.proxy.setWidthMm(0));
+    EXPECT_EQ(f.project.cabinet().dimensions.width.value(), 1200);
+}
+
+TEST(CabinetPropertiesProxyTest, SetWidthMmNoOpDoesNotDispatch) {
+    Fixture f;
+    f.proxy.setWidthMm(1200);
+    EXPECT_FALSE(f.undo.can_undo());
+}
+
+TEST(CabinetPropertiesProxyTest, UndoRestoresWidth) {
+    Fixture f;
+    f.proxy.setWidthMm(1500);
+    f.undo.undo();
+    EXPECT_EQ(f.project.cabinet().dimensions.width.value(), 1200);
+    EXPECT_EQ(f.proxy.widthMm(), 1200);
+}
+
+TEST(CabinetPropertiesProxyTest, SetDepthMmDispatches) {
+    Fixture f;
+    f.proxy.setDepthMm(800);
+    EXPECT_EQ(f.project.cabinet().dimensions.depth.value(), 800);
+}
+
+TEST(CabinetPropertiesProxyTest, SetHeightMmDispatches) {
+    Fixture f;
+    f.proxy.setHeightMm(2500);
+    EXPECT_EQ(f.project.cabinet().dimensions.height.value(), 2500);
+}
+
+TEST(CabinetPropertiesProxyTest, SetDefaultPanelThicknessDispatches) {
+    Fixture f;
+    f.proxy.set_default_panel_thickness_mm(18);
+    EXPECT_EQ(f.project.cabinet().default_panel_thickness.value(), 18);
+}
+
+TEST(CabinetPropertiesProxyTest, SetDefaultBackThicknessDispatches) {
+    Fixture f;
+    f.proxy.set_default_back_thickness_mm(6);
+    EXPECT_EQ(f.project.cabinet().default_back_thickness.value(), 6);
 }
