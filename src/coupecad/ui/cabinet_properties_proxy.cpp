@@ -47,9 +47,17 @@ int CabinetPropertiesProxy::default_back_thickness_mm() const {
     return project_.cabinet().default_back_thickness.value();
 }
 
-void CabinetPropertiesProxy::setName(const QString& /*value*/) {
-    throw core::LogicError{"ui.not_implemented_yet",
-                           "setName fills in at Task 8"};
+void CabinetPropertiesProxy::setName(const QString& value) {
+    const auto& cab = project_.cabinet();
+    const std::string new_name = value.toStdString();
+    if (new_name == cab.name) return;
+    try {
+        undo_.execute(std::make_unique<core::SetCabinetName>(cab.id, new_name));
+    } catch (const core::DomainError& e) {
+        coupecad::logging::Logger::instance().warn(
+            "ui", "cabinet.name rejected: {}", e.what());
+        emit changed();
+    }
 }
 void CabinetPropertiesProxy::setWidthMm(int mm) {
     const auto& cab = project_.cabinet();

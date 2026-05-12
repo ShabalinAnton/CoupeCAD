@@ -133,3 +133,23 @@ TEST(CabinetPropertiesProxyTest, SetDefaultBackThicknessDispatches) {
     f.proxy.set_default_back_thickness_mm(6);
     EXPECT_EQ(f.project.cabinet().default_back_thickness.value(), 6);
 }
+
+TEST(CabinetPropertiesProxyTest, SetNameDispatches) {
+    Fixture f;
+    f.proxy.setName(QString("Renamed"));
+    EXPECT_EQ(f.project.cabinet().name, std::string{"Renamed"});
+}
+
+TEST(CabinetPropertiesProxyTest, SetNameNoOpForSameValue) {
+    Fixture f;
+    const std::string original = f.project.cabinet().name;
+    f.proxy.setName(QString::fromStdString(original));   // same as current
+    EXPECT_FALSE(f.undo.can_undo());
+}
+
+TEST(CabinetPropertiesProxyTest, SetNameRejectsEmpty) {
+    Fixture f;
+    const std::string original = f.project.cabinet().name;
+    EXPECT_NO_THROW(f.proxy.setName(QString("")));   // swallowed
+    EXPECT_EQ(f.project.cabinet().name, original);
+}
