@@ -81,6 +81,17 @@ private:
     int         drag_last_y_ = 0;
     int         drag_total_dx_ = 0;
     int         drag_total_dy_ = 0;
+
+    // Sub-mm accumulators for pan/orbit/zoom. Each emit-camera step
+    // rounds the desired double-precision target to int32 mm, then
+    // stashes the fractional remainder here for the next step. Reset
+    // by fit_all() (any external camera reset).
+    double eye_carry_x_    = 0.0;
+    double eye_carry_y_    = 0.0;
+    double eye_carry_z_    = 0.0;
+    double target_carry_x_ = 0.0;
+    double target_carry_y_ = 0.0;
+    double target_carry_z_ = 0.0;
 };
 
 }  // namespace coupecad::viewport

@@ -100,10 +100,20 @@ void ViewportController::on_mouse_move(int x, int y, MouseButton btn) {
         const double new_ey = dist * cos_el * std::sin(new_az);
         const double new_ez = dist * std::sin(new_el);
 
+        const double new_eye_x_d = tx + new_ex + eye_carry_x_;
+        const double new_eye_y_d = ty + new_ey + eye_carry_y_;
+        const double new_eye_z_d = tz + new_ez + eye_carry_z_;
+        const std::int32_t new_eye_x = static_cast<std::int32_t>(std::lround(new_eye_x_d));
+        const std::int32_t new_eye_y = static_cast<std::int32_t>(std::lround(new_eye_y_d));
+        const std::int32_t new_eye_z = static_cast<std::int32_t>(std::lround(new_eye_z_d));
+        eye_carry_x_ = new_eye_x_d - static_cast<double>(new_eye_x);
+        eye_carry_y_ = new_eye_y_d - static_cast<double>(new_eye_y);
+        eye_carry_z_ = new_eye_z_d - static_cast<double>(new_eye_z);
+
         s.eye = core::Vec3{
-            core::Millimeters{static_cast<std::int32_t>(tx + new_ex)},
-            core::Millimeters{static_cast<std::int32_t>(ty + new_ey)},
-            core::Millimeters{static_cast<std::int32_t>(tz + new_ez)}};
+            core::Millimeters{new_eye_x},
+            core::Millimeters{new_eye_y},
+            core::Millimeters{new_eye_z}};
         renderer_.set_camera(s);
         dirty_ = true;
         return;
@@ -146,14 +156,35 @@ void ViewportController::on_mouse_move(int x, int y, MouseButton btn) {
         const double world_dy = ryn * pan_x_mm + upy * pan_y_mm;
         const double world_dz = rzn * pan_x_mm + upz * pan_y_mm;
 
+        const double new_eye_x_d    = static_cast<double>(s.eye.x.value())    + world_dx + eye_carry_x_;
+        const double new_eye_y_d    = static_cast<double>(s.eye.y.value())    + world_dy + eye_carry_y_;
+        const double new_eye_z_d    = static_cast<double>(s.eye.z.value())    + world_dz + eye_carry_z_;
+        const double new_target_x_d = static_cast<double>(s.target.x.value()) + world_dx + target_carry_x_;
+        const double new_target_y_d = static_cast<double>(s.target.y.value()) + world_dy + target_carry_y_;
+        const double new_target_z_d = static_cast<double>(s.target.z.value()) + world_dz + target_carry_z_;
+
+        const std::int32_t new_eye_x    = static_cast<std::int32_t>(std::lround(new_eye_x_d));
+        const std::int32_t new_eye_y    = static_cast<std::int32_t>(std::lround(new_eye_y_d));
+        const std::int32_t new_eye_z    = static_cast<std::int32_t>(std::lround(new_eye_z_d));
+        const std::int32_t new_target_x = static_cast<std::int32_t>(std::lround(new_target_x_d));
+        const std::int32_t new_target_y = static_cast<std::int32_t>(std::lround(new_target_y_d));
+        const std::int32_t new_target_z = static_cast<std::int32_t>(std::lround(new_target_z_d));
+
+        eye_carry_x_ = new_eye_x_d - static_cast<double>(new_eye_x);
+        eye_carry_y_ = new_eye_y_d - static_cast<double>(new_eye_y);
+        eye_carry_z_ = new_eye_z_d - static_cast<double>(new_eye_z);
+        target_carry_x_ = new_target_x_d - static_cast<double>(new_target_x);
+        target_carry_y_ = new_target_y_d - static_cast<double>(new_target_y);
+        target_carry_z_ = new_target_z_d - static_cast<double>(new_target_z);
+
         s.eye = core::Vec3{
-            core::Millimeters{s.eye.x.value() + static_cast<std::int32_t>(world_dx)},
-            core::Millimeters{s.eye.y.value() + static_cast<std::int32_t>(world_dy)},
-            core::Millimeters{s.eye.z.value() + static_cast<std::int32_t>(world_dz)}};
+            core::Millimeters{new_eye_x},
+            core::Millimeters{new_eye_y},
+            core::Millimeters{new_eye_z}};
         s.target = core::Vec3{
-            core::Millimeters{s.target.x.value() + static_cast<std::int32_t>(world_dx)},
-            core::Millimeters{s.target.y.value() + static_cast<std::int32_t>(world_dy)},
-            core::Millimeters{s.target.z.value() + static_cast<std::int32_t>(world_dz)}};
+            core::Millimeters{new_target_x},
+            core::Millimeters{new_target_y},
+            core::Millimeters{new_target_z}};
         renderer_.set_camera(s);
         dirty_ = true;
         return;
@@ -199,16 +230,30 @@ void ViewportController::on_wheel(int /*x*/, int /*y*/, double delta_steps) {
     const double ey = static_cast<double>(s.eye.y.value()) - ty;
     const double ez = static_cast<double>(s.eye.z.value()) - tz;
 
+    const double new_eye_x_d = tx + ex * factor + eye_carry_x_;
+    const double new_eye_y_d = ty + ey * factor + eye_carry_y_;
+    const double new_eye_z_d = tz + ez * factor + eye_carry_z_;
+
+    const std::int32_t new_eye_x = static_cast<std::int32_t>(std::lround(new_eye_x_d));
+    const std::int32_t new_eye_y = static_cast<std::int32_t>(std::lround(new_eye_y_d));
+    const std::int32_t new_eye_z = static_cast<std::int32_t>(std::lround(new_eye_z_d));
+
+    eye_carry_x_ = new_eye_x_d - static_cast<double>(new_eye_x);
+    eye_carry_y_ = new_eye_y_d - static_cast<double>(new_eye_y);
+    eye_carry_z_ = new_eye_z_d - static_cast<double>(new_eye_z);
+
     s.eye = core::Vec3{
-        core::Millimeters{static_cast<std::int32_t>(tx + ex * factor)},
-        core::Millimeters{static_cast<std::int32_t>(ty + ey * factor)},
-        core::Millimeters{static_cast<std::int32_t>(tz + ez * factor)}};
+        core::Millimeters{new_eye_x},
+        core::Millimeters{new_eye_y},
+        core::Millimeters{new_eye_z}};
 
     renderer_.set_camera(s);
     dirty_ = true;
 }
 
 void ViewportController::fit_all() {
+    eye_carry_x_ = eye_carry_y_ = eye_carry_z_ = 0.0;
+    target_carry_x_ = target_carry_y_ = target_carry_z_ = 0.0;
     renderer_.fit_all();
     dirty_ = true;
 }
